@@ -10,7 +10,14 @@ import {
   HierarchySuggestResponse,
   ClassifyLLMRequest,
   TaskStatus,
-  ClassificationResultRow // Added
+  ClassificationResultRow, // Added
+  // HF Types
+  SavedHFModelListResponse,
+  HFTrainingRequest,
+  HFRulesResponse,
+  HFRulesUpdateRequest,
+  HFClassificationRequest,
+  HFRule // Added HFRule for update request body
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -161,5 +168,88 @@ export const getResultData = async (taskId: string): Promise<ClassificationResul
 
 // Note: Download URL is constructed from TaskStatus.result_url, so no separate API call needed here.
 // We will keep the backend download endpoint for potential direct downloads if needed later.
+
+// --- HF Model Management API Functions ---
+
+export const listSavedHFModels = async (): Promise<SavedHFModelListResponse> => {
+  try {
+    const response = await apiClient.get<SavedHFModelListResponse>('/hf/models/saved');
+    return response.data;
+  } catch (error: any) {
+    console.error("Error fetching saved HF models:", error);
+    throw error;
+  }
+};
+
+// --- HF Rules API Functions ---
+
+export const getHFRules = async (modelName: string): Promise<HFRulesResponse> => {
+  if (!modelName) {
+    console.error("Model name is required to fetch HF rules.");
+    throw new Error("Model name is required.");
+  }
+  try {
+    const response = await apiClient.get<HFRulesResponse>(`/hf/rules/${encodeURIComponent(modelName)}`);
+    return response.data;
+  } catch (error: any) {
+    console.error(`Error fetching rules for HF model ${modelName}:`, error);
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+        // Model or rules file not found - return empty rules as per backend logic
+        return { rules: [] };
+    }
+    throw error;
+  }
+};
+
+export const updateHFRules = async (modelName: string, rules: HFRule[]): Promise<{ message: string }> => {
+  if (!modelName) {
+    console.error("Model name is required to update HF rules.");
+    throw new Error("Model name is required.");
+  }
+  const requestData: HFRulesUpdateRequest = { rules };
+  try {
+    // Backend returns a simple message on success
+    const response = await apiClient.put<{ message: string }>(`/hf/rules/${encodeURIComponent(modelName)}`, requestData);
+    return response.data;
+  } catch (error: any) {
+    console.error(`Error updating rules for HF model ${modelName}:`, error);
+    throw error;
+  }
+};
+
+
+// --- HF Training API Function ---
+
+export const startHFTraining = async (requestData: HFTrainingRequest): Promise<TaskStatus> => {
+  // Add frontend validation if needed
+  if (!requestData.training_file_id || !requestData.text_column || !requestData.hierarchy_columns || !requestData.new_model_name) {
+      console.error("Missing required fields for HF training request:", requestData);
+      throw new Error("Missing required fields to start HF training.");
+  }
+  try {
+    const response = await apiClient.post<TaskStatus>('/hf/train', requestData);
+    return response.data;
+  } catch (error: any) {
+    console.error("Error starting HF training:", error);
+    throw error;
+  }
+};
+
+// --- HF Classification API Function ---
+
+export const startHFClassification = async (requestData: HFClassificationRequest): Promise<TaskStatus> => {
+  if (!requestData.file_id || !requestData.text_column || !requestData.model_name) {
+      console.error("Missing required fields for HF classification request:", requestData);
+      throw new Error("Missing required fields to start HF classification.");
+  }
+  try {
+    const response = await apiClient.post<TaskStatus>('/classify/hf', requestData);
+    return response.data;
+  } catch (error: any) {
+    console.error("Error starting HF classification:", error);
+    throw error;
+  }
+};
+
 
 export default apiClient; // Keep default export if used elsewhere

@@ -79,5 +79,49 @@ export interface FileInfo {
   // Represents a single row in the results data (flexible columns)
   export type ClassificationResultRow = Record<string, any>;
 
+  // --- HF Model Management Types ---
+
+  export interface SavedHFModelListResponse {
+    model_names: string[];
+  }
+
+  // --- HF Training Types ---
+
+  export interface HFTrainingRequest {
+    training_file_id: string;
+    original_training_filename: string;
+    text_column: string;
+    // Mapping of hierarchy levels (e.g., 'L1') to column names. Value can be null.
+    hierarchy_columns: Record<string, string | null>;
+    base_model?: string; // Optional, backend has default
+    num_epochs?: number; // Optional, backend has default
+    new_model_name: string;
+  }
+
+  // --- HF Rules Types ---
+
+  export interface HFRule {
+    // Match backend model (using alias for Confidence Threshold)
+    Label: string;
+    Keywords: string;
+    'Confidence Threshold': number; // Use the actual name expected by the backend/CSV
+  }
+
+  export interface HFRulesResponse {
+    rules: HFRule[];
+  }
+
+  export interface HFRulesUpdateRequest {
+    rules: HFRule[];
+  }
+
+  // --- HF Classification Types ---
+
+  export interface HFClassificationRequest {
+    file_id: string;
+    original_filename: string;
+    text_column: string;
+    model_name: string; // Name of the saved HF model to use
+  }
 
   // Add more types as needed for hierarchy, rules, etc. later

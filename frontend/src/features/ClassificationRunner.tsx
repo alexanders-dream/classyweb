@@ -1,6 +1,6 @@
 // frontend/src/features/ClassificationRunner.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAppStore } from '../store/store';
+import { useAppStore, TaskType } from '../store/store'; // Import TaskType
 import { startLLMClassification, getTaskStatus, getResultData } from '../services/api'; // Added getResultData
 import { TaskStatus, ClassificationResultRow } from '../types'; // Added ClassificationResultRow
 // Import helper from backend utils (needs porting or separate frontend util)
@@ -15,13 +15,12 @@ const ClassificationRunner: React.FC = () => {
     selectedPredictionColumn,
     hierarchyRows,
     hierarchyIsValid,
-    //upsertTask,
-    classificationTaskId,
-    setClassificationTaskId,
-    classificationTaskStatus,
-    setClassificationTaskStatus,
-    // classificationResults, // Not needed directly here, just the setter
-    setClassificationResults, // Added setter
+    activeTaskId,         // Use generic task ID
+    activeTaskType,       // Use generic task type
+    setActiveTask,        // Use generic setter
+    activeTaskStatus,     // Use generic status
+    setActiveTaskStatus,  // Use generic status setter
+    setClassificationResults,
   } = useAppStore();
 
   const [isStarting, setIsStarting] = useState(false);
@@ -36,7 +35,7 @@ const ClassificationRunner: React.FC = () => {
       !!predictionFileInfo &&
       !!selectedPredictionColumn &&
       hierarchyIsValid && // Use the validity flag from the store
-      !classificationTaskId // Don't start if a task is already running/pending
+      !activeTaskId // Don't start if a task is already running/pending
     );
   };
 
@@ -49,7 +48,7 @@ const ClassificationRunner: React.FC = () => {
 
     setIsStarting(true);
     setError(null);
-    setClassificationTaskStatus(null); // Clear previous status
+    // setActiveTaskStatus(null); // Resetting status is handled by setActiveTask
     setClassificationResults(null); // Explicitly clear previous results when starting
 
     // Build the nested hierarchy from the rows in the store
@@ -68,22 +67,25 @@ const ClassificationRunner: React.FC = () => {
         hierarchy: nestedHierarchy, // Send the nested structure
         llm_config: llmConfig,
       });
-      setClassificationTaskId(initialStatus.task_id);
-      setClassificationTaskStatus(initialStatus); // Set initial status (likely PENDING)
+      // Set the active task ID and type
+      setActiveTask(initialStatus.task_id, TaskType.LLM_CLASSIFICATION);
+      setActiveTaskStatus(initialStatus); // Set initial status (likely PENDING)
     } catch (err: any) {
       setError(`Error starting classification: ${err.message || 'Unknown error'}`);
-      setClassificationTaskId(null); // Clear task ID on start error
+      setActiveTask(null, null); // Clear task ID and type on start error
       setClassificationResults(null); // Clear results on start error
     } finally {
       setIsStarting(false);
     }
   };
 
-  // Function to poll task status
-  const pollStatus = useCallback(async (taskId: string) => {
+  // Function to poll task status - uses activeTaskId from store
+  const pollStatus = useCallback(async () => {
+    if (!activeTaskId) return; // Don't poll if no active task
+
     try {
-      const status = await getTaskStatus(taskId);
-      setClassificationTaskStatus(status);
+      const status = await getTaskStatus(activeTaskId);
+      setActiveTaskStatus(status);
 
       // Stop polling if task is completed (Success or Failed)
       if (status.status === 'SUCCESS' || status.status === 'FAILED') {
@@ -91,10 +93,12 @@ const ClassificationRunner: React.FC = () => {
           clearInterval(pollingIntervalId);
           setPollingIntervalId(null);
         }
-        // Don't clear task ID immediately on success, wait for results fetch
-        if (status.status === 'FAILED') {
-            setClassificationTaskId(null); // Clear task ID on failure
-            setClassificationResults(null); // Clear results on failure
+        // Don't clear task ID immediately on success if it's a classification task, wait for results fetch
+        if (status.status === 'FAILED' || (status.status === 'SUCCESS' && activeTaskType === TaskType.HF_TRAINING)) {
+            setActiveTask(null, null); // Clear task ID and type on failure or training success
+            if (status.status === 'FAILED') {
+                setClassificationResults(null); // Clear results on failure
+            }
         }
       }
     } catch (err: any) {
@@ -105,93 +109,99 @@ const ClassificationRunner: React.FC = () => {
         clearInterval(pollingIntervalId);
         setPollingIntervalId(null);
       }
-       setClassificationTaskId(null); // Clear task ID on polling error
+       setActiveTask(null, null); // Clear task ID and type on polling error
     }
-  }, [pollingIntervalId, setClassificationTaskStatus, setClassificationTaskId, setClassificationResults]); // Added setClassificationResults dependency
+  }, [activeTaskId, activeTaskType, pollingIntervalId, setActiveTaskStatus, setActiveTask, setClassificationResults]); // Added dependencies
 
-  // Effect to start/stop polling when taskId changes
+  // Effect to start/stop polling when activeTaskId changes
   useEffect(() => {
-    if (classificationTaskId && !pollingIntervalId) {
+    if (activeTaskId && !pollingIntervalId) {
       // Start polling immediately and then set interval
-      pollStatus(classificationTaskId);
-      const intervalId = setInterval(() => pollStatus(classificationTaskId), POLLING_INTERVAL_MS);
+      pollStatus(); // Call without taskId, it uses activeTaskId from store
+      const intervalId = setInterval(pollStatus, POLLING_INTERVAL_MS);
       setPollingIntervalId(intervalId);
-    } else if (!classificationTaskId && pollingIntervalId) {
+    } else if (!activeTaskId && pollingIntervalId) {
       // Task finished or cleared, stop polling
       clearInterval(pollingIntervalId);
       setPollingIntervalId(null);
     }
 
-    // Cleanup function to stop polling when component unmounts or taskId changes
+    // Cleanup function to stop polling when component unmounts or activeTaskId changes
     return () => {
       if (pollingIntervalId) {
         clearInterval(pollingIntervalId);
       }
     };
-  }, [classificationTaskId, pollingIntervalId, pollStatus]);
+  }, [activeTaskId, pollingIntervalId, pollStatus]);
 
-  // Effect to fetch results when status becomes SUCCESS
+  // Effect to fetch results when status becomes SUCCESS for classification tasks
   useEffect(() => {
-    if (classificationTaskStatus?.status === 'SUCCESS' && classificationTaskStatus.task_id) {
+    // Only fetch results for classification tasks
+    if (activeTaskStatus?.status === 'SUCCESS' && activeTaskId &&
+        (activeTaskType === TaskType.LLM_CLASSIFICATION || activeTaskType === TaskType.HF_CLASSIFICATION))
+    {
       const fetchResults = async (taskId: string) => {
         setIsFetchingResults(true);
         setError(null); // Clear previous errors
         try {
           const results = await getResultData(taskId);
           setClassificationResults(results);
-          // Now clear the task ID as results are fetched
-          setClassificationTaskId(null);
+          // Now clear the task ID and type as results are fetched
+          setActiveTask(null, null);
         } catch (err: any) {
           setError(`Error fetching results: ${err.message || 'Unknown error'}`);
           setClassificationResults(null); // Clear results on fetch error
-          setClassificationTaskId(null); // Also clear task ID on fetch error
+          setActiveTask(null, null); // Also clear task ID/type on fetch error
         } finally {
           setIsFetchingResults(false);
         }
       };
-      fetchResults(classificationTaskStatus.task_id);
+      fetchResults(activeTaskId);
     }
-  }, [classificationTaskStatus, setClassificationResults, setClassificationTaskId]); // Dependencies
+  }, [activeTaskStatus, activeTaskId, activeTaskType, setClassificationResults, setActiveTask]); // Dependencies
 
 
   // --- Render Logic ---
   const isClassificationReady = canStartClassification();
-  const currentStatus = classificationTaskStatus?.status;
-  const statusMessage = classificationTaskStatus?.message;
-  // We no longer use the download URL directly here
-  // const downloadUrl = classificationTaskStatus?.result_data_url; // Use the correct field name
-  // const fullDownloadUrl = downloadUrl ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${downloadUrl}` : null;
+  const currentStatus = activeTaskStatus?.status;
+  const statusMessage = activeTaskStatus?.message;
 
+
+  // Determine button text and disabled state based on active task
+  const isTaskRunning = !!activeTaskId;
+  const buttonText = isStarting ? 'Starting...' : '🚀 Run LLM Classification'; // Keep specific for now, will generalize later
+  const buttonDisabled = !isClassificationReady || isStarting || isTaskRunning;
 
   return (
     <div>
-      <h2>Run Classification</h2>
+      <h2>Run Classification (LLM)</h2> {/* Keep specific for now */}
       <button
         onClick={handleStartClassification}
-        disabled={!isClassificationReady || isStarting || !!classificationTaskId}
+        disabled={buttonDisabled}
       >
-        {isStarting ? 'Starting...' : '🚀 Run LLM Classification'}
+        {buttonText}
       </button>
 
-      {!isClassificationReady && !classificationTaskId && (
+      {!isClassificationReady && !isTaskRunning && (
         <p><small>Requires: LLM Config Ready, Prediction Data Uploaded, Text Column Selected, Valid Hierarchy Defined.</small></p>
       )}
 
       {error && <p style={{ color: 'red' }}>Error: {error}</p>}
 
       {/* Task Status Display */}
-      {classificationTaskStatus && (
+      {activeTaskStatus && activeTaskType === TaskType.LLM_CLASSIFICATION && ( // Only show for LLM tasks for now
         <div style={{ marginTop: '1rem', padding: '1rem', border: '1px solid #eee' }}>
-          <h4>Task Status</h4>
+          <h4>Task Status ({activeTaskType})</h4>
+          <p><strong>Task ID:</strong> {activeTaskId}</p>
           <p><strong>Status:</strong> {currentStatus ?? 'Idle'}</p>
           {statusMessage && <p><strong>Message:</strong> {statusMessage}</p>}
           {currentStatus === 'RUNNING' && <p>Polling for updates...</p>}
           {currentStatus === 'SUCCESS' && isFetchingResults && <p>Fetching results...</p>}
+          {/* Removed redundant check */}
           {currentStatus === 'SUCCESS' && !isFetchingResults && (
-              <p style={{ color: 'green' }}>✅ Classification successful! Results fetched.</p>
-              // Results display will be handled by a separate component or in App.tsx
+              <p style={{ color: 'green' }}>✅ Classification successful! Results available.</p>
           )}
-           {currentStatus === 'FAILED' && <p style={{ color: 'red' }}>Classification Failed.</p>}
+           {currentStatus === 'FAILED' && <p style={{ color: 'red' }}>Task Failed.</p>}
         </div>
       )}
     </div>
