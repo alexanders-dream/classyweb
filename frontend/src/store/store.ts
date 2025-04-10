@@ -1,6 +1,7 @@
 // frontend/src/store/store.ts
 import { create } from 'zustand';
-import { FileInfo, LLMProviderConfig } from '../types'; // Removed unused TaskStatus for now
+// Import necessary types
+import { FileInfo, LLMProviderConfig, HierarchyRow, NestedHierarchySuggestion, TaskStatus } from '../types'; // Added TaskStatus
 
 interface AppState {
   // Data & Files
@@ -19,21 +20,50 @@ interface AppState {
   llmConfig: LLMProviderConfig | null;
   setLLMConfig: (config: LLMProviderConfig | null) => void;
 
+  // Hierarchy Editor State
+  hierarchyRows: HierarchyRow[]; // Array of rows for the editor
+  setHierarchyRows: (rows: HierarchyRow[]) => void;
+  pendingSuggestion: NestedHierarchySuggestion | null; // Holds AI suggestion before applying
+  setPendingSuggestion: (suggestion: NestedHierarchySuggestion | null) => void;
+  hierarchyIsValid: boolean; // Flag if current rows form a valid structure
+  setHierarchyIsValid: (isValid: boolean) => void;
+
+  // Classification Task State
+  classificationTaskId: string | null;
+  setClassificationTaskId: (taskId: string | null) => void;
+  classificationTaskStatus: TaskStatus | null;
+  setClassificationTaskStatus: (status: TaskStatus | null) => void;
+
+
   // Add more state slices as needed in later phases...
 }
 
 export const useAppStore = create<AppState>((set) => ({
   // Initial values
   predictionFileInfo: null,
-  selectedPredictionColumn: null, // Added
+  selectedPredictionColumn: null,
   llmConfig: null,
+  hierarchyRows: [], // Initialize as empty array
+  pendingSuggestion: null,
+  hierarchyIsValid: false, // Initially invalid until populated
+  classificationTaskId: null, // Added
+  classificationTaskStatus: null, // Added
 
   // Actions/Setters
   setPredictionFileInfo: (info) => set({
      predictionFileInfo: info,
      selectedPredictionColumn: null // Reset column selection when file changes
     }),
-  setSelectedPredictionColumn: (col) => set({ selectedPredictionColumn: col }), // Added
+  setSelectedPredictionColumn: (col) => set({ selectedPredictionColumn: col }),
   setLLMConfig: (config) => set({ llmConfig: config }),
+
+  // Hierarchy Setters
+  setHierarchyRows: (rows) => set({ hierarchyRows: rows }),
+  setPendingSuggestion: (suggestion) => set({ pendingSuggestion: suggestion }),
+  setHierarchyIsValid: (isValid) => set({ hierarchyIsValid: isValid }),
+
+  // Classification Task Setters
+  setClassificationTaskId: (taskId) => set({ classificationTaskId: taskId, classificationTaskStatus: null }), // Reset status when new task starts
+  setClassificationTaskStatus: (status) => set({ classificationTaskStatus: status }),
 
 }));

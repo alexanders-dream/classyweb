@@ -1,7 +1,12 @@
 // frontend/src/App.tsx
 import React from 'react';
-import { ThemeProvider, createTheme, CssBaseline, Box, Drawer, List, ListItem, ListItemButton, ListItemText, Toolbar, Typography, Divider, AppBar } from '@mui/material'; // Added Divider, AppBar
-import DataSetup from './features/DataSetup'; // Import the new component
+import { ThemeProvider, createTheme, CssBaseline, Box, Drawer, List, ListItem, ListItemButton, ListItemText, Toolbar, Typography, Divider, AppBar } from '@mui/material';
+import DataSetup from './features/DataSetup';
+// Import the new components
+import LLMConfigSidebar from './components/LLMConfigSidebar';
+import HierarchyEditor from './features/HierarchyEditor';
+import ClassificationRunner from './features/ClassificationRunner'; // Added
+
 
 const drawerWidth = 280; // Slightly wider maybe
 
@@ -59,11 +64,8 @@ function App() {
 
             {/* Conditional Sidebar Content */}
             {activeWorkflow === "LLM" && (
-              <>
-                <Typography variant="h6" gutterBottom>🤖 LLM Configuration</Typography>
-                {/* Placeholder for LLM Sidebar - Phase 2 */}
-                <Typography variant="body2" color="text.secondary">LLM Config options will appear here...</Typography>
-              </>
+              // Render the LLM Config Sidebar when LLM workflow is active
+              <LLMConfigSidebar />
             )}
              {activeWorkflow === "HF" && (
               <>
@@ -89,11 +91,26 @@ function App() {
           {/* For now, just show DataSetup */}
           <DataSetup />
 
+          {/* Render Hierarchy Editor only for LLM workflow */}
+          {activeWorkflow === "LLM" && (
+            <>
+              <Divider sx={{ my: 4 }} />
+              <HierarchyEditor />
+            </>
+          )}
+
           {/* Placeholder for other tabs/sections */}
-          <Divider sx={{ my: 4 }} />
-          <Typography variant="h5">2. Hierarchy (Placeholder)</Typography>
-          <Divider sx={{ my: 4 }} />
-          <Typography variant="h5">3. Classification (Placeholder)</Typography>
+          {/* <Divider sx={{ my: 4 }} />
+          <Typography variant="h5">2. Hierarchy (Placeholder)</Typography> */}
+
+          {/* Render Classification Runner only for LLM workflow */}
+          {activeWorkflow === "LLM" && (
+            <>
+              <Divider sx={{ my: 4 }} />
+              <ClassificationRunner />
+            </>
+          )}
+
            <Divider sx={{ my: 4 }} />
           <Typography variant="h5">4. Results (Placeholder)</Typography>
 

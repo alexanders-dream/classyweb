@@ -1,0 +1,3588 @@
+Directory structure:
+└── alexanders-dream-classy/
+    ├── README.md
+    ├── app.py
+    ├── config.py
+    ├── hf_classifier.py
+    ├── llm_classifier.py
+    ├── requirements.txt
+    ├── ui_components.py
+    └── utils.py
+
+================================================
+FILE: README.md
+================================================
+
+# AI Hierarchical Text Classifier 🏷️
+
+A Streamlit application designed for classifying text data into predefined hierarchical structures using either Large Language Models (LLMs) via API (Groq, Ollama) or fine-tuned Hugging Face Transformer models.
+
+## Overview
+
+This application provides a user-friendly interface to:
+
+1.  **Upload Text Data:** Load text data you want to classify (CSV or Excel).
+2.  **Define Hierarchies:**
+    *   For LLMs: Manually define a multi-level hierarchy (Theme, Category, Segment, Subsegment) using a data editor, or get AI-generated suggestions based on your data.
+    *   For Hugging Face: The hierarchy is inferred from selected columns in labeled training data.
+3.  **Classify Text:**
+    *   **LLM Workflow:** Send text snippets (in batches) to a configured LLM (Groq Cloud or a local Ollama instance) for classification against the defined hierarchy.
+    *   **Hugging Face Workflow:**
+        *   Train a new sequence classification model (e.g., DistilBERT, BERT) on your labeled data.
+        *   Load a previously trained and saved model.
+        *   Edit classification rules (keyword overrides, confidence thresholds).
+        *   Classify unlabeled text using the trained/loaded model and rules.
+4.  **Review & Download Results:** View the classified data in a table, analyze basic statistics (distribution), and download the results as CSV or Excel.
+
+## Features
+
+*   **Dual Workflow:** Choose between LLM-based or Hugging Face model-based classification.
+*   **Supported LLM Providers:**
+    *   Groq (Cloud API, requires API key)
+    *   Ollama (Local inference, requires Ollama installed and running)
+*   **LLM Hierarchy Management:**
+    *   Interactive hierarchy editor (Theme -> Category -> Segment -> Subsegment -> Keywords).
+    *   AI-powered hierarchy suggestion based on data samples.
+    *   Dynamic fetching of available LLM models (Groq, Ollama).
+*   **Hugging Face Model Management:**
+    *   Fine-tune common Transformer models (DistilBERT, BERT, RoBERTa) for multi-label classification.
+    *   Save trained models, tokenizers, label maps, and rules locally.
+    *   Load previously saved models for reuse.
+*   **Hugging Face Rule Engine:**
+    *   Automatic keyword suggestion using Chi-Squared analysis during training.
+    *   Manual editing of keyword overrides and confidence thresholds per label.
+    *   Classification applies model probability, thresholds, and keyword rules.
+*   **User-Friendly Interface:** Built with Streamlit, featuring tabs for a structured workflow, data previews, progress indicators, and download options.
+*   **Data Handling:** Supports CSV and Excel file uploads with basic cleaning.
+*   **Configuration:** Uses environment variables (`.env` file or Streamlit Secrets) for API keys and endpoints.
+
+## Prerequisites
+
+*   **Python:** Version 3.8 or higher.
+*   **Pip:** Python package installer.
+*   **Git:** (Optional) For cloning the repository.
+*   **Ollama:** (Optional) If using the Ollama workflow, you need Ollama installed and running locally. Download from [ollama.com](https://ollama.com/). You also need to have pulled the desired models (e.g., `ollama pull llama3`).
+*   **Groq API Key:** (Optional) If using the Groq workflow, you need an API key from [GroqCloud](https://console.groq.com/keys).
+
+## Installation
+
+1.  **Clone the repository (or download the source code):**
+    ```bash
+    git clone https://github.com/alexanders-dream/classy.git
+    cd alexanders-dream-classy
+    ```
+
+2.  **Create and activate a virtual environment (Recommended):**
+    *   **macOS/Linux:**
+        ```bash
+        python3 -m venv venv
+        source venv/bin/activate
+        ```
+    *   **Windows:**
+        ```bash
+        python -m venv venv
+        .\venv\Scripts\activate
+        ```
+
+3.  **Install the required packages:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+    *Note: Depending on your system and whether you have CUDA installed, `transformers[torch]` might require additional setup for GPU acceleration. The `accelerate` package is included for potential performance improvements.*
+
+4.  **Set up Environment Variables:**
+    Create a file named `.env` in the root directory (`alexanders-dream-classy/`) of the project. Add the following variables as needed:
+
+    ```dotenv
+    # Required for Groq workflow
+    GROQ_API_KEY="gsk_YOUR_GROQ_API_KEY"
+
+    # Optional: Override default Ollama endpoint if it's not running on http://localhost:11434
+    # OLLAMA_ENDPOINT="http://your_ollama_host:11434"
+    ```
+
+    *   Replace `"gsk_YOUR_GROQ_API_KEY"` with your actual Groq API key.
+    *   Uncomment and set `OLLAMA_ENDPOINT` only if your Ollama service is running on a different address or port.
+    *   **Alternatively:** You can use Streamlit Secrets if deploying on Streamlit Community Cloud. See Streamlit documentation for secrets management. The app will check for `st.secrets["GROQ_API_KEY"]` etc.
+
+## Running the Application
+
+1.  Ensure your virtual environment is activated.
+2.  Make sure Ollama is running in the background if you plan to use the Ollama workflow (`ollama serve` in your terminal).
+3.  Navigate to the project's root directory in your terminal.
+4.  Run the Streamlit application:
+    ```bash
+    streamlit run app.py
+    ```
+5.  The application should open in your default web browser.
+
+## Usage Guide
+
+1.  **Sidebar - Workflow & Configuration:**
+    *   **Workflow:** Select either "LLM Categorization" or "Hugging Face Model".
+    *   **LLM Configuration (if LLM selected):**
+        *   Choose the AI Provider (Groq or Ollama).
+        *   Verify/Enter the API Endpoint (defaults are provided).
+        *   Enter the API Key if required (e.g., for Groq). The app attempts to load from `.env` or Streamlit secrets first.
+        *   Fetch and select the desired AI Model from the list.
+        *   Click "End Session & Clear State" to reset the application.
+
+2.  **Tab 1: Data Setup:**
+    *   **Data to Classify:** Upload the CSV/Excel file containing the text you want to categorize. Preview the data and select the specific column containing the text.
+    *   **Training Data (Optional - for HF only):** If using the Hugging Face workflow *and* you want to train a new model, upload a labeled CSV/Excel file. Select the text column and the columns representing each level of your hierarchy (Theme, Category, etc.). Confirm the column selections.
+
+3.  **Tab 2: Hierarchy:**
+    *   **LLM Workflow:**
+        *   **AI Suggestion:** If data is loaded, optionally generate a hierarchy suggestion based on text samples using the configured LLM. Review and apply or discard the suggestion.
+        *   **Hierarchy Editor:** Manually define or edit the Theme -> Category -> Segment -> Subsegment -> Keywords structure. Add, edit, or delete rows. The preview below shows the nested structure being built. The hierarchy must be valid (contain at least one full path) to proceed.
+    *   **Hugging Face Workflow:** Displays the hierarchy columns selected from the training data in Tab 1.
+
+4.  **Tab 3: Classification:**
+    *   **LLM Workflow:**
+        *   Verify LLM configuration, data upload, and hierarchy definition are complete.
+        *   Click "Classify using LLM". Texts will be processed in batches.
+    *   **Hugging Face Workflow:**
+        *   **Option A: Train/Retrain:** If training data is loaded and columns selected, configure training parameters (base model, epochs, validation split) and click "Start HF Training". The trained model becomes active. You can then optionally save it with a name.
+        *   **Option B: Load Model:** Select a previously saved model from the dropdown (models saved in `~/.ai_classifier_saved_models/hf_models/`) and click "Load Selected Model". The loaded model becomes active.
+        *   **Review & Edit Rules:** If a model is active, view and edit the associated rules (Label, Keywords, Confidence Threshold). Save changes.
+        *   **Run Classification:** Verify a model is active and prediction data is ready. Click "Classify using Hugging Face Model".
+
+5.  **Tab 4: Results:**
+    *   View the classification results appended to your original data.
+    *   Download the results as a CSV or Excel file.
+    *   View workflow-specific statistics (Theme distribution for HF, summary counts for LLM).
+
+
+## Troubleshooting
+
+*   **Groq Errors:** Ensure your `GROQ_API_KEY` in `.env` or secrets is correct and valid. Check network connectivity.
+*   **Ollama Errors:** Make sure the Ollama application is running (`ollama serve`). Verify the `OLLAMA_ENDPOINT` in `.env` (if set) or the sidebar matches where Ollama is listening. Ensure the selected model has been pulled (`ollama list`).
+*   **Dependency Issues:** If `pip install` fails, check your Python/Pip version and network connection. Resolve any conflicting packages.
+*   **File Loading Errors:** Ensure files are valid CSV or Excel (.xls, .xlsx). Check for encoding issues (UTF-8 and latin1 are attempted for CSV).
+*   **HF Model Training Failures:** May require significant RAM/VRAM. Check error messages for specifics. Ensure training data is correctly formatted and columns are selected.
+*   **Slow LLM Performance:** Local Ollama performance depends heavily on your hardware. Batch size and concurrency can be adjusted in `llm_classifier.py` (though not exposed in UI currently). Groq performance depends on their service status.
+
+
+
+
+================================================
+FILE: app.py
+================================================
+# app.py
+"""Main Streamlit application file for the Hierarchical Text Classifier."""
+
+# Standard Library Imports
+import os
+import re
+from pathlib import Path
+import traceback
+from typing import List
+
+# Third-Party Imports
+import pandas as pd
+import streamlit as st
+from dotenv import load_dotenv
+
+# Local Application Imports
+import config
+import utils
+import ui_components
+import hf_classifier
+import llm_classifier
+
+# --- Load Environment Variables ---
+# Load early to ensure availability
+load_dotenv()
+
+# --- Helper Functions ---
+
+def list_saved_hf_models(base_path: Path) -> List[str]:
+    """
+    Lists subdirectories in the base_path, assuming they are saved Hugging Face models.
+    Creates the base path if it doesn't exist.
+
+    Args:
+        base_path: The Path object representing the directory containing saved models.
+
+    Returns:
+        A sorted list of model directory names, or an empty list if an error occurs.
+    """
+    try:
+        base_path.mkdir(parents=True, exist_ok=True)
+        return sorted([d.name for d in base_path.iterdir() if d.is_dir()])
+    except Exception as e:
+        st.error(f"Error listing models in {base_path}: {e}")
+        return []
+
+def sanitize_foldername(name: str) -> str:
+    """
+    Cleans a string to be suitable as a folder name.
+    Removes leading/trailing whitespace and problematic characters,
+    replaces multiple underscores with a single one, and ensures
+    a default name if the result is empty.
+
+    Args:
+        name: The input string name.
+
+    Returns:
+        A sanitized string suitable for use as a folder name.
+    """
+    if not isinstance(name, str):
+        name = str(name) # Attempt to convert non-strings
+    name = name.strip()
+    # Remove characters not allowed in folder names (allow letters, numbers, underscore, hyphen, period)
+    name = re.sub(r'[^\w\-\.]+', '_', name)
+    # Remove leading/trailing underscores or periods that might cause issues
+    name = name.strip('_.')
+    # Replace multiple consecutive underscores with a single one
+    name = re.sub(r'_+', '_', name)
+    # Return a default name if the sanitized name is empty
+    return name if name else "unnamed_model"
+
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="AI Text Classifier",
+    page_icon="🏷️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- Initialize Session State ---
+# Moved detailed init logic to utils.init_session_state()
+if 'session_initialized' not in st.session_state:
+    utils.init_session_state() # This should handle all default initializations
+    st.session_state.session_initialized = True
+
+# --- Main App Title ---
+st.title("🏷️ AI Hierarchical Text Classifier")
+st.markdown("Classify text using Hugging Face models or Large Language Models (LLMs).")
+
+# --- Workflow Selection ---
+st.sidebar.title("🛠️ Workflow")
+workflow_options = ["LLM Categorization", "Hugging Face Model"]
+selected_workflow = st.sidebar.radio(
+    "Choose Method:",
+    options=workflow_options,
+    key='selected_workflow',
+    horizontal=True
+)
+st.sidebar.markdown("---")
+
+# --- Display LLM Sidebar ---
+llm_ready = False # Default value
+if selected_workflow == "LLM Categorization":
+    ui_components.display_llm_sidebar()
+    llm_ready = st.session_state.get('llm_client') is not None
+
+# --- Main Application Tabs ---
+tab_setup, tab_hierarchy, tab_classify, tab_results = st.tabs([
+    "1. Data Setup",
+    "2. Hierarchy",
+    "3. Classification",
+    "4. Results"
+])
+
+# === Tab 1: Data Setup ===
+with tab_setup:
+    st.header("1. Data Upload and Column Selection")
+    st.markdown("Upload your data and select the text column for classification.")
+
+    col_pred, col_train = st.columns(2)
+
+    # --- Column 1: Prediction Data ---
+    with col_pred:
+        st.subheader("Data to Classify")
+        help_pred = "Upload a CSV or Excel file containing the text data you want to categorize."
+        uncategorized_file = st.file_uploader(
+            "Upload Unlabeled Data",
+            type=['csv', 'xlsx', 'xls'],
+            key="uncat_uploader_main",
+            help=help_pred
+        )
+
+        # Load prediction data if a new file is uploaded
+        if uncategorized_file and uncategorized_file.file_id != st.session_state.get('uncategorized_file_key'):
+            with st.spinner(f"Loading '{uncategorized_file.name}'..."):
+                st.session_state.uncategorized_df = utils.load_data(uncategorized_file)
+            # Reset related state variables
+            st.session_state.uncategorized_file_key = uncategorized_file.file_id
+            st.session_state.uncat_text_col = None
+            st.session_state.results_df = None # Clear previous results
+            st.session_state.app_stage = 'file_uploaded'
+            # No rerun needed here, handled by Streamlit's flow
+
+        # Display prediction data preview and column selector
+        if st.session_state.uncategorized_df is not None:
+            uncat_df = st.session_state.uncategorized_df
+            st.success(f"Prediction data loaded ({uncat_df.shape[0]} rows).")
+            with st.expander("Preview Prediction Data"):
+                st.dataframe(uncat_df.head())
+
+            st.markdown("**Select Text Column:**")
+            uncat_df.columns = uncat_df.columns.astype(str) # Ensure string column names
+            uncat_cols = [""] + uncat_df.columns.tolist() # Add empty option
+            current_uncat_col = st.session_state.uncat_text_col
+            default_uncat_idx = 0
+            if current_uncat_col in uncat_cols:
+                try:
+                    default_uncat_idx = uncat_cols.index(current_uncat_col)
+                except ValueError: # Should not happen if check passes, but safety first
+                    st.session_state.uncat_text_col = None # Reset if invalid
+            elif current_uncat_col: # If it was set but not found (e.g., file changed)
+                 st.session_state.uncat_text_col = None # Reset
+
+            selected_uncat_col = st.selectbox(
+                "Select column containing text to classify:",
+                options=uncat_cols,
+                index=default_uncat_idx,
+                key="uncat_text_select_main",
+                label_visibility="collapsed"
+            )
+
+            # Update session state if selection changes
+            if selected_uncat_col and selected_uncat_col != st.session_state.uncat_text_col:
+                st.session_state.uncat_text_col = selected_uncat_col
+                st.session_state.app_stage = 'column_selected'
+                st.rerun() # Rerun to reflect selection change immediately
+            elif selected_uncat_col:
+                st.caption(f"Using column: **'{selected_uncat_col}'**")
+        else:
+            st.info("Upload the data you want to classify.")
+
+    # --- Column 2: Training Data (HF Only) ---
+    with col_train:
+        if selected_workflow == "Hugging Face Model":
+            st.subheader("Training Data (Optional)")
+            help_train = "For HF: Upload labeled data (CSV/Excel) with text and hierarchy columns."
+            categorized_file = st.file_uploader(
+                "Upload Labeled Data (for HF Training)",
+                type=['csv', 'xlsx', 'xls'],
+                key="cat_uploader_main",
+                help=help_train
+            )
+
+            # Load training data if a new file is uploaded
+            if categorized_file and categorized_file.file_id != st.session_state.get('categorized_file_key'):
+                with st.spinner(f"Loading '{categorized_file.name}'..."):
+                    st.session_state.categorized_df = utils.load_data(categorized_file)
+                # Reset related state variables
+                st.session_state.categorized_file_key = categorized_file.file_id
+                st.session_state.cat_text_col = None
+                for level in config.HIERARCHY_LEVELS:
+                    st.session_state[f'cat_{level.lower()}_col'] = None
+                # Reset model state as new training data invalidates old model/rules
+                st.session_state.hf_model_ready = False
+                st.session_state.hf_model = None
+                st.session_state.hf_tokenizer = None
+                st.session_state.hf_label_map = None
+                st.session_state.hf_rules = pd.DataFrame(columns=config.HF_RULE_COLUMNS)
+                # No rerun needed here
+
+            # Display training data preview and column selectors
+            if st.session_state.categorized_df is not None:
+                cat_df = st.session_state.categorized_df
+                st.success(f"Training data loaded ({cat_df.shape[0]} rows).")
+                with st.expander("Preview Training Data"):
+                    st.dataframe(cat_df.head())
+
+                # Form for selecting HF training columns
+                with st.form("hf_col_sel_form"):
+                    st.markdown("**Select Columns for HF Training:**")
+                    cat_df.columns = cat_df.columns.astype(str) # Ensure string column names
+                    available_cat_cols = cat_df.columns.tolist()
+
+                    # Text Column Selection
+                    current_cat_text_col = st.session_state.cat_text_col
+                    default_cat_text_idx = 0
+                    if current_cat_text_col in available_cat_cols:
+                         try:
+                             default_cat_text_idx = available_cat_cols.index(current_cat_text_col)
+                         except ValueError:
+                             st.session_state.cat_text_col = None # Reset
+                    elif current_cat_text_col:
+                         st.session_state.cat_text_col = None # Reset
+
+                    selected_cat_text_col = st.selectbox(
+                        "Text Column:",
+                        available_cat_cols,
+                        index=default_cat_text_idx,
+                        key="cat_text_sel_main"
+                    )
+
+                    # Hierarchy Column Selection
+                    st.markdown("Hierarchy Columns:")
+                    selected_hierarchy_cols = {}
+                    for level in config.HIERARCHY_LEVELS:
+                        level_key = f'cat_{level.lower()}_col'
+                        current_level_col = st.session_state.get(level_key, "(None)")
+                        # Options exclude the selected text column and "(None)"
+                        options = ["(None)"] + [c for c in available_cat_cols if c != selected_cat_text_col]
+                        default_level_idx = 0
+                        if current_level_col in options:
+                            try:
+                                default_level_idx = options.index(current_level_col)
+                            except ValueError: pass # Keep default 0
+
+                        selected_hierarchy_cols[level] = st.selectbox(
+                            f"{level}:",
+                            options,
+                            index=default_level_idx,
+                            key=f"{level_key}_sel_main"
+                        )
+
+                    # Form Submission
+                    submitted_hf_cols = st.form_submit_button("Confirm HF Columns")
+                    if submitted_hf_cols:
+                        active_selections = {
+                            level: col for level, col in selected_hierarchy_cols.items()
+                            if col and col != "(None)"
+                        }
+                        # Validation
+                        if not selected_cat_text_col:
+                            st.warning("Please select the Text Column.")
+                        elif not active_selections:
+                            st.warning("Please select at least one Hierarchy Column.")
+                        elif len(list(active_selections.values())) != len(set(list(active_selections.values()))):
+                            st.warning("Hierarchy columns must be unique.")
+                        else:
+                            # Update session state on successful validation
+                            st.session_state.cat_text_col = selected_cat_text_col
+                            for level, col in selected_hierarchy_cols.items():
+                                st.session_state[f'cat_{level.lower()}_col'] = col
+                            st.success("HF training columns confirmed.")
+                            # Reset model state as column selections changed
+                            st.session_state.hf_model_ready = False
+                            st.session_state.hf_model = None
+                            st.session_state.hf_tokenizer = None
+                            st.session_state.hf_label_map = None
+                            st.session_state.hf_rules = pd.DataFrame(columns=config.HF_RULE_COLUMNS)
+                            st.rerun() # Rerun to reflect confirmation
+
+            else: # No training data uploaded
+                st.info("Upload labeled data if you plan to train a Hugging Face model.")
+        else: # LLM workflow selected
+            st.info("Training data upload is only needed for the Hugging Face Model workflow.")
+
+
+# === Tab 2: Hierarchy Definition ===
+with tab_hierarchy:
+    st.header("2. Define Classification Hierarchy")
+
+    # --- LLM Workflow: Hierarchy Definition ---
+    if selected_workflow == "LLM Categorization":
+        st.markdown("Define the classification structure for the LLM. You can use the editor below, generate an AI suggestion based on your data, or refine an existing hierarchy.")
+
+        st.subheader("🤖 AI Hierarchy Suggestion")
+
+        # Check prerequisites for suggestion
+        uncat_df = st.session_state.get('uncategorized_df')
+        uncat_text_col = st.session_state.get('uncat_text_col')
+        suggestion_possible = (uncat_df is not None and uncat_text_col)
+
+        if suggestion_possible:
+            # --- Prepare for AI Suggestion ---
+            slider_enabled = False
+            max_slider_val = config.MIN_LLM_SAMPLE_SIZE
+            default_slider_val = config.MIN_LLM_SAMPLE_SIZE
+            min_texts_needed = config.MIN_LLM_SAMPLE_SIZE
+
+            try:
+                if uncat_text_col in uncat_df.columns:
+                    # Attempt to get unique, non-numeric-like string values
+                    text_series = uncat_df[uncat_text_col].dropna()
+                    # Filter out purely numeric strings if possible, keep others
+                    is_numeric_like = pd.to_numeric(text_series, errors='coerce').notna()
+                    string_texts = text_series[~is_numeric_like].astype(str)
+                    unique_texts = string_texts.unique()
+                    unique_count = len(unique_texts)
+
+                    if unique_count >= min_texts_needed:
+                        max_slider_val = min(config.MAX_LLM_SAMPLE_SIZE, unique_count)
+                        default_slider_val = min(config.DEFAULT_LLM_SAMPLE_SIZE, max_slider_val)
+                        slider_enabled = llm_ready # Enable slider only if LLM is ready and enough data
+                        if not llm_ready:
+                             st.warning("LLM Client not configured (see sidebar). Cannot generate suggestion.")
+                    else:
+                        st.warning(f"Need at least {min_texts_needed} unique non-numeric text samples in '{uncat_text_col}' to generate suggestions.")
+                        slider_enabled = False # Ensure disabled
+                else:
+                    st.warning(f"Selected text column '{uncat_text_col}' not found in the uploaded data.")
+                    slider_enabled = False # Ensure disabled
+            except Exception as e:
+                st.error(f"Error preparing for AI suggestion: {e}")
+                traceback.print_exc() # Log detailed error
+                slider_enabled = False # Ensure disabled
+
+            # --- AI Suggestion UI ---
+            sample_size = st.slider(
+                f"Number of unique text samples to use from '{uncat_text_col}':",
+                min_value=config.MIN_LLM_SAMPLE_SIZE,
+                max_value=max_slider_val,
+                value=default_slider_val,
+                step=50,
+                key="ai_sample_slider_main",
+                help="More samples provide more context to the LLM but take longer to process.",
+                disabled=not slider_enabled
+            )
+
+            if st.button("🚀 Generate Suggestion", key="generate_ai_hierarchy_main", type="primary", disabled=not slider_enabled):
+                if llm_ready: # Double-check LLM readiness
+                    st.session_state.ai_suggestion_pending = None # Clear previous pending
+                    with st.spinner("🧠 Asking AI to suggest a hierarchy based on sample data..."):
+                        try:
+                            # Reselect unique texts within the button click logic for safety
+                            text_series = uncat_df[uncat_text_col].dropna()
+                            is_numeric_like = pd.to_numeric(text_series, errors='coerce').notna()
+                            string_texts = text_series[~is_numeric_like].astype(str)
+                            unique_list = string_texts.unique().tolist()
+
+                            if len(unique_list) >= min_texts_needed:
+                                # Ensure sample size doesn't exceed available unique texts
+                                actual_sample_size = min(len(unique_list), sample_size)
+                                # Sample if needed, otherwise use all unique texts
+                                if len(unique_list) > actual_sample_size:
+                                    sampled_texts = pd.Series(unique_list).sample(actual_sample_size, random_state=42).tolist()
+                                else:
+                                    sampled_texts = unique_list
+
+                                suggestion = llm_classifier.generate_hierarchy_suggestion(
+                                    st.session_state.llm_client,
+                                    sampled_texts
+                                )
+                                if suggestion:
+                                    st.session_state.ai_suggestion_pending = suggestion
+                                    st.success("✅ AI hierarchy suggestion generated!")
+                                else:
+                                    st.error("❌ AI failed to generate a suggestion. The response might have been empty or invalid.")
+                                st.rerun() # Rerun to display suggestion options in the editor
+                            else:
+                                # This check might be redundant due to slider disabling, but good safety
+                                st.warning(f"Insufficient unique text samples ({len(unique_list)} found) to generate suggestion. Need at least {min_texts_needed}.")
+                        except Exception as e:
+                            st.error(f"An error occurred during suggestion generation: {e}")
+                            traceback.print_exc()
+                else:
+                    st.error("LLM Client is not ready. Please configure it in the sidebar.")
+        else: # Suggestion not possible (no data/column)
+             st.info("Upload prediction data and select the text column in '1. Data Setup' to enable AI suggestions.")
+
+        st.divider()
+        st.subheader("✏️ Hierarchy Editor")
+        # The display_hierarchy_editor function handles showing the editor and applying suggestions
+        hierarchy_valid = ui_components.display_hierarchy_editor(key_prefix="llm")
+
+    # --- Hugging Face Workflow: Hierarchy Display ---
+    elif selected_workflow == "Hugging Face Model":
+        st.info("For the Hugging Face workflow, the hierarchy is implicitly defined by the columns selected in '1. Data Setup'.")
+        active_hf_cols = {
+            level: st.session_state.get(f'cat_{level.lower()}_col')
+            for level in config.HIERARCHY_LEVELS
+            if st.session_state.get(f'cat_{level.lower()}_col') and st.session_state.get(f'cat_{level.lower()}_col') != "(None)"
+        }
+        if active_hf_cols:
+            st.markdown("**Selected Hierarchy Columns (from Training Data):**")
+            for level, column_name in active_hf_cols.items():
+                st.write(f"- **{level}:** `{column_name}`")
+        else:
+            st.warning("No hierarchy columns selected in '1. Data Setup'. Please select the relevant columns from your training data.")
+
+# === Tab 3: Run Classification ===
+with tab_classify:
+    st.header("3. Run Classification")
+
+    # Display completion message if classification just finished
+    if st.session_state.get('classification_just_completed', False):
+        st.success("✅ Classification Complete! View results in the '4. Results' tab.")
+        # Reset the flag after displaying the message
+        st.session_state.classification_just_completed = False
+
+    # --- Hugging Face Workflow ---
+    if selected_workflow == "Hugging Face Model":
+        st.subheader("Hugging Face Model: Train, Load, and Classify")
+
+        # --- Readiness Checks ---
+        hf_training_data_loaded = st.session_state.get('categorized_df') is not None
+        hf_training_cols_selected = (
+            st.session_state.get('cat_text_col') and
+            any(st.session_state.get(f'cat_{level.lower()}_col') and
+                st.session_state.get(f'cat_{level.lower()}_col') != "(None)"
+                for level in config.HIERARCHY_LEVELS)
+        )
+        hf_ready_for_training = hf_training_data_loaded and hf_training_cols_selected
+        hf_model_is_ready = st.session_state.get('hf_model_ready', False)
+        hf_prediction_data_ready = (
+            st.session_state.get('uncategorized_df') is not None and
+            st.session_state.get('uncat_text_col') is not None
+        )
+        hf_ready_for_classification = hf_model_is_ready and hf_prediction_data_ready
+
+        # --- Option A: Train/Retrain Model ---
+        with st.container(border=True):
+            st.markdown("**Option A: Train or Retrain a Hugging Face Model**")
+            if not hf_ready_for_training:
+                st.warning("Training requires labeled data and selected columns in '1. Data Setup'.")
+
+            # Training Parameters
+            train_params_disabled = not hf_ready_for_training
+            col_model, col_epochs, col_split = st.columns(3)
+            with col_model:
+                hf_base_model = st.selectbox(
+                    "Base Model:",
+                    options=["distilbert-base-uncased", "bert-base-uncased", "roberta-base"],
+                    index=0,
+                    disabled=train_params_disabled,
+                    key="hf_base_model_select"
+                )
+            with col_epochs:
+                hf_num_epochs = st.slider(
+                    "Epochs:",
+                    min_value=1, max_value=10, value=3, step=1,
+                    disabled=train_params_disabled,
+                    key="hf_epochs_slider"
+                )
+            with col_split:
+                hf_val_split_percent = st.slider(
+                    "Validation Split (%):",
+                    min_value=5, max_value=50, value=int(config.DEFAULT_VALIDATION_SPLIT * 100), step=5,
+                    help="Percentage of training data held out for validation during training.",
+                    disabled=train_params_disabled,
+                    key="hf_val_split_slider"
+                )
+                hf_val_split_ratio = hf_val_split_percent / 100.0
+
+            # Training Button
+            train_button_text = "🚀 Start HF Training" if not hf_model_is_ready else "🔄 Retrain HF Model"
+            if st.button(train_button_text, type="primary", disabled=train_params_disabled):
+                st.session_state.classification_just_completed = False # Reset flag
+
+                # Reset existing model state if retraining
+                if hf_model_is_ready:
+                    st.info("Clearing previous model state before retraining...")
+                    utils.reset_hf_model_state() # Use utility function
+
+                # Prepare data for training
+                hierarchy_map = {
+                    level: st.session_state.get(f'cat_{level.lower()}_col')
+                    for level in config.HIERARCHY_LEVELS
+                }
+                active_hierarchy_cols = {l: c for l, c in hierarchy_map.items() if c and c != "(None)"}
+
+                if not st.session_state.cat_text_col or not active_hierarchy_cols:
+                    st.error("Cannot train: Text column or hierarchy columns are not properly selected in Tab 1.")
+                else:
+                    with st.spinner("Preparing training data..."):
+                        prepared_texts, prepared_labels = hf_classifier.prepare_hierarchical_training_data(
+                            st.session_state.categorized_df,
+                            st.session_state.cat_text_col,
+                            hierarchy_map
+                        )
+
+                    if prepared_texts and prepared_labels:
+                        with st.spinner(f"Training {hf_base_model} for {hf_num_epochs} epochs... This may take a while."):
+                            try:
+                                model, tokenizer, label_map, rules_df = hf_classifier.train_hf_model(
+                                    prepared_texts,
+                                    prepared_labels,
+                                    hf_base_model,
+                                    hf_num_epochs,
+                                    hf_val_split_ratio
+                                )
+                                if model and tokenizer and label_map is not None:
+                                    st.session_state.hf_model = model
+                                    st.session_state.hf_tokenizer = tokenizer
+                                    st.session_state.hf_label_map = label_map
+                                    st.session_state.hf_rules = rules_df if rules_df is not None else pd.DataFrame(columns=config.HF_RULE_COLUMNS)
+                                    st.session_state.hf_model_ready = True
+                                    st.session_state.hf_model_save_name = f"trained_{hf_base_model.split('/')[-1]}" # Suggest a name
+                                    st.success("✅ Hugging Face Model trained successfully!")
+                                    st.rerun() # Rerun to update UI (e.g., enable save/classify)
+                                else:
+                                    st.error("❌ Model training failed. Check logs or parameters.")
+                            except Exception as e:
+                                st.error(f"An error occurred during training: {e}")
+                                traceback.print_exc()
+                    else:
+                        st.error("❌ Data preparation for training failed. Check input data and column selections.")
+
+            # --- Save Trained Model Section ---
+            if hf_model_is_ready and st.session_state.get('hf_model'):
+                st.success(f"HF Model Ready: '{st.session_state.get('hf_model_save_name', '(Untitled)')}'")
+                st.markdown("**Save Current Trained Model:**")
+                save_name = st.text_input(
+                    "Model Save Name:",
+                    value=st.session_state.get("hf_model_save_name", ""),
+                    key="hf_save_name_input",
+                    placeholder="e.g., product_classifier_v1"
+                )
+                if st.button("💾 Save Model", key="save_hf_model_button"):
+                    st.session_state.classification_just_completed = False # Reset flag
+                    sanitized_name = sanitize_foldername(save_name)
+                    if not sanitized_name or sanitized_name == "unnamed_model":
+                        st.warning("Please enter a valid name for saving the model.")
+                    else:
+                        save_directory = config.SAVED_HF_MODELS_BASE_PATH / sanitized_name
+                        if save_directory.exists():
+                            st.warning(f"Directory '{sanitized_name}' already exists. Saving will overwrite its contents.")
+
+                        with st.spinner(f"Saving model to '{sanitized_name}'..."):
+                            success = hf_classifier.save_hf_model_artifacts(
+                                st.session_state.hf_model,
+                                st.session_state.hf_tokenizer,
+                                st.session_state.hf_label_map,
+                                st.session_state.hf_rules,
+                                str(save_directory) # Pass path as string
+                            )
+                            if success:
+                                st.session_state.hf_model_save_name = sanitized_name # Update state with the saved name
+                                st.success(f"Model successfully saved as '{sanitized_name}'.")
+                            else:
+                                st.error("❌ Failed to save model artifacts.")
+            # Display nothing if model not ready and training not possible
+            elif not hf_ready_for_training and not hf_model_is_ready:
+                pass # Avoid showing save section if no model is ready/trainable
+
+        st.markdown("---") # Separator
+
+        # --- Option B: Load Existing Model ---
+        with st.container(border=True):
+            st.markdown("**Option B: Load an Existing Saved HF Model**")
+            st.caption(f"Models are loaded from: `{config.SAVED_HF_MODELS_BASE_PATH}`")
+            saved_models = list_saved_hf_models(config.SAVED_HF_MODELS_BASE_PATH)
+
+            if not saved_models:
+                st.info("No saved models found in the specified directory.")
+            else:
+                load_options = [""] + saved_models # Add empty option for placeholder
+                current_model_name = st.session_state.get('hf_model_save_name')
+                current_index = 0
+                if current_model_name in load_options:
+                    try:
+                        current_index = load_options.index(current_model_name)
+                    except ValueError: pass # Should not happen
+
+                selected_model_to_load = st.selectbox(
+                    "Select Model to Load:",
+                    options=load_options,
+                    index=current_index,
+                    key="hf_load_model_select",
+                    help="Choose the folder name of the saved model."
+                )
+
+                # Disable load button if a model is already loaded or no model is selected
+                load_button_disabled = hf_model_is_ready or not selected_model_to_load
+                if st.button("🔄 Load Selected Model", disabled=load_button_disabled):
+                    st.session_state.classification_just_completed = False # Reset flag
+                    if hf_model_is_ready:
+                         # This case should be prevented by disabled button, but good safety check
+                        st.warning("A model is already loaded. Cannot load another.")
+                    elif selected_model_to_load:
+                        load_directory = config.SAVED_HF_MODELS_BASE_PATH / selected_model_to_load
+                        with st.spinner(f"Loading model '{selected_model_to_load}'..."):
+                            try:
+                                model, tokenizer, label_map, rules_df = hf_classifier.load_hf_model_artifacts(str(load_directory))
+                                if model and tokenizer and label_map is not None:
+                                    st.session_state.hf_model = model
+                                    st.session_state.hf_tokenizer = tokenizer
+                                    st.session_state.hf_label_map = label_map
+                                    st.session_state.hf_rules = rules_df if rules_df is not None else pd.DataFrame(columns=config.HF_RULE_COLUMNS)
+                                    st.session_state.hf_model_ready = True
+                                    st.session_state.hf_model_save_name = selected_model_to_load # Update state
+                                    st.success(f"✅ Model '{selected_model_to_load}' loaded successfully!")
+                                    st.rerun() # Update UI
+                                else:
+                                    st.error(f"❌ Failed to load model '{selected_model_to_load}'. Check if the directory contains valid artifacts.")
+                            except Exception as e:
+                                st.error(f"An error occurred during loading: {e}")
+                                traceback.print_exc()
+                    # No else needed for !selected_model_to_load as button is disabled
+
+            if hf_model_is_ready:
+                st.success(f"Active Model: '{st.session_state.get('hf_model_save_name', 'Loaded Model')}'")
+
+        st.markdown("---") # Separator
+
+        # --- HF Rule Editor ---
+        st.subheader("Review & Edit HF Classification Rules")
+        current_rules = st.session_state.get('hf_rules')
+
+        if hf_model_is_ready and current_rules is not None and not current_rules.empty:
+            # Check for essential columns needed for editing
+            if 'Label' in current_rules.columns and 'Confidence Threshold' in current_rules.columns:
+                with st.form("hf_rules_edit_form"):
+                    st.info("Edit Labels, add comma-separated Keywords (which force the label if found), and adjust Confidence Thresholds (0.05-0.95).")
+
+                    # Prepare DataFrame for editing
+                    rules_to_edit = current_rules.copy()
+                    # Ensure 'Keywords' column exists and fill NaNs
+                    if 'Keywords' not in rules_to_edit.columns:
+                        rules_to_edit['Keywords'] = '' # Add empty column if missing
+                    rules_to_edit['Keywords'] = rules_to_edit['Keywords'].fillna('')
+                    # Ensure 'Confidence Threshold' is numeric, fill NaNs, and clip
+                    rules_to_edit['Confidence Threshold'] = pd.to_numeric(rules_to_edit['Confidence Threshold'], errors='coerce')
+                    rules_to_edit['Confidence Threshold'] = rules_to_edit['Confidence Threshold'].fillna(config.DEFAULT_HF_THRESHOLD)
+                    rules_to_edit['Confidence Threshold'] = rules_to_edit['Confidence Threshold'].clip(0.05, 0.95)
+                    # Ensure 'Label' is string
+                    rules_to_edit['Label'] = rules_to_edit['Label'].astype(str)
+
+                    # Define columns for the editor (ensure order and configuration)
+                    column_order = ['Label', 'Keywords', 'Confidence Threshold']
+                    # Include other columns if they exist, but don't configure them for editing
+                    other_cols = [col for col in rules_to_edit.columns if col not in column_order]
+                    display_cols = column_order + other_cols
+
+                    edited_rules_df = st.data_editor(
+                        rules_to_edit.sort_values('Label')[display_cols], # Sort for consistency, display defined cols
+                        column_config={
+                            "Label": st.column_config.TextColumn("Label (Editable)", required=True),
+                            "Keywords": st.column_config.TextColumn("Keywords (Editable, comma-separated)"),
+                            "Confidence Threshold": st.column_config.NumberColumn(
+                                "Confidence Threshold (Editable)",
+                                min_value=0.05, max_value=0.95, step=0.01, format="%.3f",
+                                required=True
+                            )
+                            # Other columns will use default config (likely read-only)
+                        },
+                        use_container_width=True,
+                        hide_index=True,
+                        num_rows="dynamic", # Allow adding/deleting rows
+                        key="hf_rules_data_editor"
+                    )
+
+                    submitted = st.form_submit_button("Save Rule Changes")
+                    if submitted:
+                        st.session_state.classification_just_completed = False # Reset flag
+                        if isinstance(edited_rules_df, pd.DataFrame):
+                            # --- Validation of edited rules ---
+                            valid = True
+                            if 'Label' not in edited_rules_df.columns or edited_rules_df['Label'].isnull().any() or (edited_rules_df['Label'] == '').any():
+                                st.warning("Labels cannot be empty. Please provide a label for each rule.")
+                                valid = False
+                            if 'Confidence Threshold' not in edited_rules_df.columns:
+                                st.warning("Confidence Threshold column is missing.") # Should not happen with config
+                                valid = False
+                            else:
+                                # Coerce threshold again after editing
+                                edited_rules_df['Confidence Threshold'] = pd.to_numeric(edited_rules_df['Confidence Threshold'], errors='coerce')
+                                if edited_rules_df['Confidence Threshold'].isnull().any():
+                                     st.warning("Confidence Threshold must be a valid number between 0.05 and 0.95.")
+                                     valid = False
+                                else:
+                                     # Clip again after potential manual edits outside bounds
+                                     edited_rules_df['Confidence Threshold'] = edited_rules_df['Confidence Threshold'].clip(0.05, 0.95)
+
+                            if valid:
+                                # Ensure Keywords column exists and fill NaNs after potential edits/deletions
+                                if 'Keywords' not in edited_rules_df.columns:
+                                     edited_rules_df['Keywords'] = ''
+                                edited_rules_df['Keywords'] = edited_rules_df['Keywords'].fillna('')
+
+                                # --- Compare with original rules ---
+                                # Select only the core, comparable columns
+                                compare_cols = ['Label', 'Keywords', 'Confidence Threshold']
+                                # Ensure columns exist in both dataframes before comparison
+                                current_compare_cols = [col for col in compare_cols if col in current_rules.columns]
+                                edited_compare_cols = [col for col in compare_cols if col in edited_rules_df.columns]
+
+                                if set(current_compare_cols) == set(edited_compare_cols): # Only compare if core columns match
+                                    # Sort both by Label and reset index for accurate comparison
+                                    current_comp_df = current_rules[current_compare_cols].sort_values('Label').reset_index(drop=True).astype(str)
+                                    edited_comp_df = edited_rules_df[edited_compare_cols].sort_values('Label').reset_index(drop=True).astype(str)
+
+                                    if not current_comp_df.equals(edited_comp_df):
+                                        st.session_state.hf_rules = edited_rules_df.copy() # Update state
+                                        st.success("✅ Rule changes saved successfully!")
+                                    else:
+                                        st.info("No changes detected in the rules.")
+                                else:
+                                     st.warning("Could not compare rules due to missing core columns in edited data.")
+
+                        else: # Should not happen with data_editor
+                            st.error("Data editor did not return a valid DataFrame.")
+            elif 'Label' not in current_rules.columns or 'Confidence Threshold' not in current_rules.columns:
+                 st.warning("Cannot edit rules: The loaded rules DataFrame is missing the required 'Label' or 'Confidence Threshold' columns.")
+        elif hf_model_is_ready: # Model ready, but rules are None or empty
+            st.info("The loaded/trained model does not have any associated rules to edit.")
+        else: # Model not ready
+            st.info("Train or load a Hugging Face model first to review or edit its rules.")
+
+        st.divider() # Separator
+
+        # --- Run HF Classification ---
+        st.header("🚀 Run HF Classification")
+        if not hf_prediction_data_ready:
+             st.warning("Upload data to classify and select the text column in '1. Data Setup'.")
+        if not hf_model_is_ready:
+             st.warning("Train or load a Hugging Face model first.")
+
+        if st.button("Classify using Hugging Face Model", type="primary", disabled=not hf_ready_for_classification):
+            st.session_state.classification_just_completed = False # Reset flag
+            uncat_df = st.session_state.uncategorized_df
+            text_col = st.session_state.uncat_text_col
+
+            if text_col and text_col in uncat_df.columns:
+                texts_to_classify = uncat_df[text_col].fillna("").astype(str).tolist()
+                if texts_to_classify:
+                    with st.spinner("Classifying texts using the HF model..."):
+                        try:
+                            # Perform classification
+                            raw_predicted_labels = hf_classifier.classify_texts_with_hf(
+                                texts_to_classify,
+                                st.session_state.hf_model,
+                                st.session_state.hf_tokenizer,
+                                st.session_state.hf_label_map,
+                                st.session_state.hf_rules # Pass current rules
+                            )
+
+                            # Process results
+                            st.session_state.raw_predicted_labels = raw_predicted_labels # Store raw for potential analysis
+                            parsed_labels_dict = utils.parse_predicted_labels_to_columns(raw_predicted_labels)
+                            results_df = uncat_df.copy()
+                            predictions_df = pd.DataFrame(parsed_labels_dict, index=results_df.index)
+
+                            # Add predicted columns (e.g., HF_Theme, HF_Category)
+                            for level in config.HIERARCHY_LEVELS:
+                                results_df[f"HF_{level}"] = predictions_df.get(level) # Use .get for safety
+
+                            # Add raw labels column (optional, for inspection)
+                            results_df["HF_Raw_Labels"] = [', '.join(map(str, label_list)) if label_list else None for label_list in raw_predicted_labels]
+
+                            # Update session state
+                            st.session_state.results_df = results_df
+                            st.session_state.app_stage = 'categorized'
+                            st.session_state.classification_just_completed = True # Set flag for success message
+                            st.rerun() # Rerun to display results tab and success message
+
+                        except Exception as e:
+                            st.error(f"An error occurred during HF classification: {e}")
+                            traceback.print_exc()
+                else:
+                    st.warning("The selected text column contains no text data to classify.")
+            elif uncat_df is not None: # Data loaded, but column missing (shouldn't happen often with UI checks)
+                st.error(f"Prediction column '{text_col}' not found in the uploaded data.")
+            # No else needed if uncat_df is None, covered by initial checks
+
+        elif not hf_ready_for_classification:
+            st.info("Please ensure a Hugging Face model is loaded/trained and prediction data is ready.")
+
+    # --- LLM Workflow: Classification ---
+    elif selected_workflow == "LLM Categorization":
+        st.subheader("🚀 Run LLM Classification")
+
+        # --- Readiness Checks ---
+        llm_hierarchy_defined = st.session_state.get('hierarchy_defined', False)
+        llm_prediction_data_ready = (
+            st.session_state.get('uncategorized_df') is not None and
+            st.session_state.get('uncat_text_col') is not None
+        )
+        llm_ready_for_classification = (
+            llm_ready and # From sidebar check
+            llm_hierarchy_defined and
+            llm_prediction_data_ready
+        )
+
+        # Display warnings if not ready
+        if not llm_hierarchy_defined:
+            st.warning("Define a valid hierarchy structure in '2. Hierarchy' tab first.")
+        if not llm_ready:
+            st.warning("LLM Client is not configured. Please set it up in the sidebar.")
+        if not llm_prediction_data_ready:
+            st.warning("Upload data to classify and select the text column in '1. Data Setup'.")
+
+        # --- Classification Button ---
+        if st.button("Classify using LLM", type="primary", disabled=not llm_ready_for_classification):
+            st.session_state.classification_just_completed = False # Reset flag
+
+            # Build hierarchy from the DataFrame stored in session state (created by editor)
+            final_hierarchy = utils.build_hierarchy_from_df(st.session_state.get('hierarchy_df'))
+
+            # Validate hierarchy structure before proceeding
+            if final_hierarchy and final_hierarchy.get('themes'): # Basic check for themes
+                uncat_df = st.session_state.uncategorized_df
+                text_col = st.session_state.uncat_text_col
+
+                if text_col and text_col in uncat_df.columns:
+                    with st.spinner("🧠 Classifying texts using the LLM... This might take some time depending on data size and model."):
+                        try:
+                            # Call the LLM classification function
+                            results_llm_df = llm_classifier.classify_texts_with_llm(
+                                uncat_df,
+                                text_col,
+                                final_hierarchy,
+                                st.session_state.llm_client
+                            )
+
+                            if results_llm_df is not None:
+                                st.session_state.results_df = results_llm_df
+                                st.session_state.app_stage = 'categorized'
+                                st.session_state.classification_just_completed = True # Set flag
+                                st.success("✅ LLM Classification complete!")
+                                st.rerun() # Go to results tab / show completion message
+                            else:
+                                st.error("❌ LLM Classification failed. The process returned no results. Check LLM configuration or input data.")
+                        except Exception as e:
+                            st.error(f"An error occurred during LLM classification: {e}")
+                            traceback.print_exc()
+                else:
+                    st.error(f"Selected prediction column '{text_col}' not found in the uploaded data.")
+            else:
+                st.error("Cannot run LLM classification: The defined hierarchy is invalid or empty. Please check '2. Hierarchy' tab.")
+
+        elif not llm_ready_for_classification:
+            st.info("Please complete all setup steps (LLM client, hierarchy, data upload) to enable LLM classification.")
+
+
+# === Tab 4: Results ===
+with tab_results:
+    st.header("4. View Results")
+
+    # Check if results exist in session state
+    results_df = st.session_state.get('results_df')
+
+    if results_df is not None:
+        # Display the results DataFrame
+        st.markdown("### Classification Results")
+        # Use a copy to avoid modifying the original DataFrame in session state via display
+        results_display_df = results_df.copy()
+        st.dataframe(results_display_df, use_container_width=True)
+
+        # --- Download Buttons ---
+        st.markdown("### Download Results")
+        col_dl_csv, col_dl_excel = st.columns(2)
+        with col_dl_csv:
+            try:
+                csv_data = results_display_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download as CSV",
+                    data=csv_data,
+                    file_name='classification_results.csv',
+                    mime='text/csv',
+                    key='download_csv_button'
+                )
+            except Exception as e:
+                st.error(f"Error generating CSV: {e}")
+        with col_dl_excel:
+            try:
+                excel_data = utils.df_to_excel_bytes(results_display_df)
+                st.download_button(
+                    label="📥 Download as Excel",
+                    data=excel_data,
+                    file_name='classification_results.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    key='download_excel_button'
+                )
+            except Exception as e:
+                st.error(f"Error generating Excel: {e}")
+
+        st.divider()
+
+        # --- Workflow-Specific Summaries ---
+
+        # Hugging Face Stats
+        if selected_workflow == "Hugging Face Model":
+            st.subheader("📊 Hugging Face Classification Stats")
+            # Check if the necessary raw labels exist for stats calculation
+            if st.session_state.get('raw_predicted_labels') is not None:
+                try:
+                    # Assuming display_hierarchical_stats works correctly with the df and prefix
+                    utils.display_hierarchical_stats(results_display_df, prefix="HF_")
+                except Exception as e:
+                    st.error(f"An error occurred generating Hugging Face stats: {e}")
+                    traceback.print_exc()
+            else:
+                st.info("Raw prediction labels not found, cannot display detailed HF stats.")
+
+        # LLM Summary
+        elif selected_workflow == "LLM Categorization":
+            st.subheader("📊 LLM Classification Summary")
+            try:
+                total_rows = len(results_display_df)
+                theme_col = 'LLM_Theme'
+                category_col = 'LLM_Category'
+                reasoning_col = 'LLM_Reasoning' # Often contains error messages
+
+                # Calculate categorized rows (non-empty Theme/Category and not 'Error' in Theme)
+                categorized_count = 0
+                if theme_col in results_display_df.columns and category_col in results_display_df.columns:
+                     categorized_mask = (
+                         (results_display_df[theme_col].notna() | results_display_df[category_col].notna()) &
+                         (results_display_df[theme_col] != 'Error') # Exclude rows marked as Error in Theme
+                     )
+                     categorized_count = results_display_df[categorized_mask].shape[0]
+                elif theme_col in results_display_df.columns: # Fallback if only Theme exists
+                     categorized_mask = (results_display_df[theme_col].notna() & (results_display_df[theme_col] != 'Error'))
+                     categorized_count = results_display_df[categorized_mask].shape[0]
+
+
+                # Calculate error rows more robustly
+                error_count = 0
+                error_indices = set()
+                if theme_col in results_display_df.columns:
+                    error_indices.update(results_display_df[results_display_df[theme_col] == 'Error'].index)
+                if reasoning_col in results_display_df.columns:
+                     # Check for "Error:" pattern in reasoning, especially when Theme might be NaN
+                     reasoning_errors = results_display_df[
+                         results_display_df[reasoning_col].astype(str).str.contains("Error:", na=False)
+                     ].index
+                     error_indices.update(reasoning_errors)
+                error_count = len(error_indices)
+
+                # Display Metrics
+                col_met_total, col_met_cat, col_met_err = st.columns(3)
+                with col_met_total:
+                    st.metric("Total Rows Processed", f"{total_rows:,}")
+                with col_met_cat:
+                    st.metric("Successfully Categorized", f"{categorized_count:,}")
+                with col_met_err:
+                    if error_count > 0:
+                        st.metric("Rows with Errors", f"{error_count:,}", delta=f"{error_count}", delta_color="inverse")
+                    else:
+                        st.metric("Rows with Errors", "0")
+
+
+                # Display Theme Counts (if Theme column exists)
+                if theme_col in results_display_df.columns:
+                    st.markdown("**Theme Distribution:**")
+                    theme_counts = results_display_df[theme_col].value_counts().reset_index()
+                    theme_counts.columns = ['Theme', 'Count']
+                    st.dataframe(theme_counts, use_container_width=True, hide_index=True)
+
+            except Exception as e:
+                st.error(f"An error occurred generating the LLM summary: {e}")
+                traceback.print_exc()
+
+    else: # No results_df found
+        st.info("No classification results to display. Please run a classification in '3. Classification' tab.")
+
+# --- Footer ---
+st.sidebar.divider()
+# Consider making the version dynamic if possible, e.g., reading from a file or config
+APP_VERSION = "1.7-refactored"
+st.sidebar.caption(f"AI Classifier App v{APP_VERSION}")
+
+# --- Entry Point ---
+# Standard practice for Python scripts, though less critical for Streamlit apps
+# which are typically run via `streamlit run app.py`
+if __name__ == "__main__":
+    # Potential place for setup code if needed before Streamlit runs,
+    # but most logic is handled within the Streamlit execution flow.
+    pass # Keep pass if no specific main execution logic is needed
+
+
+
+================================================
+FILE: config.py
+================================================
+# config.py
+"""Configuration constants for the application."""
+
+import os
+from pathlib import Path
+
+# --- User Home Directory & Base Save Path ---
+# Use pathlib.Path.home() for cross-platform compatibility
+USER_HOME = Path.home()
+# Define a base directory within the user's home folder for all app models
+# Using a hidden folder (starting with '.') is common practice
+SAVED_MODELS_BASE_DIR = USER_HOME / ".ai_classifier_saved_models"
+# Specific subfolder for Hugging Face models
+SAVED_HF_MODELS_BASE_PATH = SAVED_MODELS_BASE_DIR / "hf_models"
+
+# --- HF Training Defaults ---
+DEFAULT_VALIDATION_SPLIT = 0.15 # Default fraction for validation
+DEFAULT_HF_THRESHOLD = 0.5
+
+# --- Hierarchy Definition ---
+HIERARCHY_LEVELS = ["Theme", "Category", "Segment", "Subsegment"] # Define hierarchy order
+
+# --- API Defaults ---
+DEFAULT_OLLAMA_ENDPOINT = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
+DEFAULT_GROQ_ENDPOINT = os.getenv("GROQ_ENDPOINT", "https://api.groq.com/openai/v1")
+
+# --- Model Defaults ---
+DEFAULT_GROQ_MODEL = "llama3-70b-8192"
+DEFAULT_OLLAMA_MODEL = "llama3:latest"
+
+# --- Classification Defaults ---
+DEFAULT_LLM_TEMPERATURE = 0.1
+DEFAULT_HF_THRESHOLD = 0.5 # Default confidence threshold for HF predictions
+
+# --- UI Defaults ---
+DEFAULT_LLM_SAMPLE_SIZE = 200
+MIN_LLM_SAMPLE_SIZE = 50
+MAX_LLM_SAMPLE_SIZE = 1000
+
+# --- Provider List ---
+SUPPORTED_PROVIDERS = ["Groq", "Ollama"]
+
+
+
+================================================
+FILE: hf_classifier.py
+================================================
+# hf_classifier.py
+"""Functions for the Hugging Face Transformers classification workflow."""
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+from transformers import (
+    AutoTokenizer,
+    AutoModelForSequenceClassification,
+    Trainer,
+    TrainingArguments,
+    TrainerCallback,
+    EvalPrediction
+)
+import torch
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, f1_score, precision_recall_fscore_support
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_selection import chi2
+import os
+import json
+import traceback
+import re
+from pathlib import Path
+import config
+from typing import List, Dict, Any, Tuple, Optional
+
+# --- Data Preparation ---
+def prepare_hierarchical_training_data(
+    df: pd.DataFrame,
+    text_col: str,
+    hierarchy_cols: Dict[str, Optional[str]]
+) -> Tuple[Optional[List[str]], Optional[List[List[str]]]]:
+    """Prepares training data for HF by creating prefixed hierarchical labels."""
+    if df is None or not text_col: st.error("HF Prep: Training DataFrame or text column is missing."); return None, None
+    if text_col not in df.columns: st.error(f"HF Prep: Selected text column '{text_col}' not found."); return None, None
+    valid_hierarchy_cols = {level: col for level, col in hierarchy_cols.items() if col and col != "(None)"}
+    if not valid_hierarchy_cols: st.error("HF Prep: No hierarchy columns selected."); return None, None
+    missing_cols = [col for col in valid_hierarchy_cols.values() if col not in df.columns]
+    if missing_cols: st.error(f"HF Prep: Hierarchy columns not found: {', '.join(missing_cols)}"); return None, None
+
+    st.info("HF Prep: Preparing training data with hierarchical prefixes...")
+    all_texts, all_prefixed_labels = [], []
+    error_count = 0
+    with st.spinner("Processing training rows for HF..."):
+        for index, row in df.iterrows():
+            try:
+                text = str(row[text_col]) if pd.notna(row[text_col]) else ""
+                all_texts.append(text)
+                row_labels = set()
+                for level, col_name in valid_hierarchy_cols.items():
+                    if col_name in row and pd.notna(row[col_name]):
+                        cell_value = str(row[col_name]).strip()
+                        if cell_value:
+                            values = [v.strip() for v in cell_value.replace(';',',').split(',') if v.strip()]
+                            for value in values: row_labels.add(f"{level}: {value}")
+                all_prefixed_labels.append(list(row_labels))
+            except Exception as e:
+                 error_count += 1
+                 if error_count <= 10: st.warning(f"HF Prep: Skipping row {index} due to error: {e}")
+                 all_texts.append(""); all_prefixed_labels.append([])
+    if error_count > 0: st.warning(f"HF Prep: Finished with errors in {error_count} rows.")
+    if not any(all_prefixed_labels): st.error("HF Prep: NO labels generated."); return None, None
+    st.success(f"HF Prep: Data preparation complete ({len(all_texts)} texts).")
+    return all_texts, all_prefixed_labels
+
+# --- Training Callback ---
+class StProgressCallback(TrainerCallback):
+    """Callback to update Streamlit progress bar during HF training."""
+    def __init__(self, progress_bar, progress_text, status_text, total_steps):
+        self.progress_bar = progress_bar; self.progress_text = progress_text; self.status_text = status_text; self.total_steps = total_steps; self.start_step_progress = 0.6
+    def on_step_end(self, args, state, control, **kwargs):
+        current_step = state.global_step
+        if self.total_steps > 0:
+            step_prog = (current_step / self.total_steps) * (0.95 - self.start_step_progress); total_prog = self.start_step_progress + step_prog
+            self.progress_bar.progress(min(total_prog, 0.95)); epoch = state.epoch if state.epoch is not None else 0
+            self.progress_text.text(f"Training: Step {current_step}/{self.total_steps} | Epoch {epoch:.2f}")
+        else: self.progress_text.text(f"Training step {current_step}...")
+
+# --- Compute Metrics ---
+def compute_metrics(p: EvalPrediction):
+    """
+    Computes multi-label classification metrics for Hugging Face Trainer.
+
+    Args:
+        p: An EvalPrediction object containing predictions and label_ids.
+
+    Returns:
+        Dict[str, float]: A dictionary containing evaluation metrics.
+    """
+    # Extract logits and labels
+    logits = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
+    labels = p.label_ids
+
+    # Apply sigmoid and threshold to get binary predictions
+    sigmoid = torch.nn.Sigmoid()
+    probs = sigmoid(torch.Tensor(logits))
+    threshold = 0.5
+    y_pred = np.zeros(probs.shape)
+    y_pred[np.where(probs >= threshold)] = 1
+
+    # Ensure integer types for metric calculation
+    y_true = labels.astype(int)
+    y_pred = y_pred.astype(int)
+
+    # Calculate metrics
+    subset_accuracy = accuracy_score(y_true, y_pred)
+    micro_f1 = f1_score(y_true, y_pred, average='micro', zero_division=0)
+    macro_f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
+    weighted_f1 = f1_score(y_true, y_pred, average='weighted', zero_division=0)
+    micro_precision, micro_recall, _, _ = precision_recall_fscore_support(
+        y_true, y_pred, average='micro', zero_division=0
+    )
+
+    return {
+        'subset_accuracy': subset_accuracy,
+        'micro_f1': micro_f1,
+        'macro_f1': macro_f1,
+        'weighted_f1': weighted_f1,
+        'micro_precision': micro_precision,
+        'micro_recall': micro_recall
+    }
+
+# --- Model Training ---
+def train_hf_model(
+    all_train_texts: List[str],
+    all_train_labels_list: List[List[str]],
+    model_choice: str,
+    num_epochs: int,
+    validation_split_ratio: float = config.DEFAULT_VALIDATION_SPLIT
+) -> Tuple[Optional[Any], Optional[Any], Optional[Dict[str, int]], pd.DataFrame]:
+    """
+    Trains the Hugging Face classification model with validation split.
+
+    Orchestrates the entire training process including data preparation,
+    model loading, training, and rule extraction.
+
+    Args:
+        all_train_texts: List of all training text examples.
+        all_train_labels_list: List of lists, where each inner list contains the string labels for a text.
+        model_choice: Name of the Hugging Face model to use (e.g., 'bert-base-uncased').
+        num_epochs: Number of training epochs.
+        validation_split_ratio: Fraction of data to use for validation.
+
+    Returns:
+        A tuple containing:
+        - Trained model object (or None on error).
+        - Tokenizer object (or None on error).
+        - Label map (dictionary mapping label names to indices) (or None on error).
+        - DataFrame containing extracted rules (or empty DataFrame on error).
+    """
+    st.info(f"Starting HF model training: {model_choice} for {num_epochs} epochs ({validation_split_ratio*100:.1f}% validation)...")
+    model, tokenizer, label_map, rules_df = None, None, None, pd.DataFrame()
+
+    # --- 1. Process Labels ---
+    label_map, all_encoded_labels, num_labels = _process_labels(all_train_labels_list)
+    if label_map is None:
+        return None, None, None, pd.DataFrame() # Error already logged in helper
+
+    # --- 2. Split Data ---
+    split_data = _split_data(all_train_texts, all_encoded_labels, validation_split_ratio)
+    if split_data is None:
+        return None, None, None, pd.DataFrame() # Error already logged in helper
+    train_texts, val_texts, train_labels_encoded, val_labels_encoded = split_data
+
+    # --- Progress Bar Setup ---
+    progress_bar = st.progress(0.0)
+    progress_text = st.empty()
+    status_text = st.empty()
+    status_text.text("HF Train: Initializing...")
+
+    try:
+        # --- 3. Load Model & Tokenizer ---
+        tokenizer, model = _load_model_and_tokenizer(model_choice, num_labels, progress_bar, status_text)
+        if tokenizer is None or model is None:
+            raise ValueError("Failed to load model or tokenizer.") # Error logged in helper
+
+        # --- 4. Tokenize Data ---
+        train_encodings, val_encodings = _tokenize_data(
+            tokenizer, train_texts, val_texts, progress_bar, status_text
+        )
+        if train_encodings is None or val_encodings is None:
+             raise ValueError("Failed to tokenize data.") # Error logged in helper
+
+        # --- 5. Create Datasets ---
+        train_dataset, eval_dataset = _create_datasets(
+            train_encodings, train_labels_encoded, val_encodings, val_labels_encoded, progress_bar, status_text
+        )
+        if train_dataset is None or eval_dataset is None:
+            raise ValueError("Failed to create datasets.") # Error logged in helper
+
+        # --- 6. Setup Training ---
+        training_args, progress_callback, total_steps = _setup_training_arguments(
+            model_choice, num_epochs, len(train_dataset), progress_bar, progress_text, status_text
+        )
+        if training_args is None:
+             raise ValueError("Failed to set up training arguments.") # Error logged in helper
+
+        # --- 7. Initialize Trainer ---
+        trainer = _initialize_trainer(
+            model, training_args, train_dataset, eval_dataset, progress_callback
+        )
+        progress_bar.progress(0.6, text="HF Train: Trainer Initialized.")
+
+        # --- 8. Train Model ---
+        status_text.text("HF Train: Starting training loop...")
+        train_result = trainer.train()
+        metrics = train_result.metrics
+        st.write("Training completed. Final Metrics:")
+        st.json(metrics)
+        progress_bar.progress(0.95, text="HF Train: Training Finished.")
+
+        # --- 9. Extract Rules ---
+        status_text.text("HF Train: Extracting keyword rules...")
+        # Use the original full training data (before splitting) for rule extraction
+        rules_df = extract_hf_rules(all_train_texts, all_encoded_labels, label_map)
+        progress_bar.progress(1.0)
+        status_text.text("HF Training Pipeline Done!")
+        progress_text.text("") # Clear progress text
+
+        # --- 10. Finalize and Return ---
+        best_model = trainer.model
+        best_model.cpu() # Move model to CPU before returning
+        return best_model, tokenizer, label_map, rules_df
+
+    except Exception as e:
+        st.error(f"HF Train Error: {e}")
+        st.error(traceback.format_exc())
+        status_text.text("HF Train Failed.")
+        progress_text.text("")
+        progress_bar.progress(1.0) # Ensure progress bar completes on error
+        return None, None, None, pd.DataFrame()
+
+
+# --- Helper Functions for train_hf_model ---
+
+def _process_labels(all_train_labels_list: List[List[str]]) -> Tuple[Optional[Dict[str, int]], Optional[List[np.ndarray]], Optional[int]]:
+    """Processes raw labels into a map and encoded format."""
+    st.write("HF Train Helper: Processing labels...")
+    try:
+        all_labels_set = set(label for sublist in all_train_labels_list for label in sublist if label)
+        if not all_labels_set:
+            st.error("HF Train Helper: No valid labels found in the training data.")
+            return None, None, None
+        unique_labels = sorted(list(all_labels_set))
+        label_map = {label: i for i, label in enumerate(unique_labels)}
+        num_labels = len(unique_labels)
+        st.write(f"HF Train Helper: Found {num_labels} unique labels.")
+
+        def encode_labels(labels: List[str]) -> np.ndarray:
+            encoded = np.zeros(num_labels, dtype=np.float32)
+            for label in labels:
+                if label in label_map:
+                    encoded[label_map[label]] = 1.0
+            return encoded
+
+        all_encoded_labels = [encode_labels(labels) for labels in all_train_labels_list]
+        return label_map, all_encoded_labels, num_labels
+    except Exception as e:
+        st.error(f"HF Train Helper: Error processing labels: {e}")
+        return None, None, None
+
+
+def _split_data(
+    all_texts: List[str],
+    all_encoded_labels: List[np.ndarray],
+    validation_split_ratio: float
+) -> Optional[Tuple[List[str], List[str], List[np.ndarray], List[np.ndarray]]]:
+    """Splits data into training and validation sets."""
+    st.write("HF Train Helper: Splitting data...")
+    try:
+        train_texts, val_texts, train_labels_encoded, val_labels_encoded = train_test_split(
+            all_texts, all_encoded_labels, test_size=validation_split_ratio, random_state=42
+        )
+        if not train_texts or not val_texts:
+            raise ValueError("Created an empty training or validation set after split. Check data or split ratio.")
+        st.success(f"HF Train Helper: Data split complete ({len(train_texts)} train, {len(val_texts)} validation).")
+        return train_texts, val_texts, train_labels_encoded, val_labels_encoded
+    except ValueError as e:
+        if "test_size" in str(e) or "cannot be larger" in str(e) or "should be between" in str(e):
+             st.error(f"HF Train Helper: Invalid validation split ratio ({validation_split_ratio}). Must be > 0 and < 1.")
+        elif "Found input variables with inconsistent numbers of samples" in str(e):
+             st.error(f"HF Train Helper: Mismatch between number of texts ({len(all_texts)}) and labels ({len(all_encoded_labels)}). Cannot split.")
+        else:
+             st.error(f"HF Train Helper: Error splitting data: {e}")
+        return None
+    except Exception as e:
+        st.error(f"HF Train Helper: Unexpected error during data splitting: {e}")
+        return None
+
+
+def _load_model_and_tokenizer(
+    model_choice: str, num_labels: int, progress_bar: Any, status_text: Any
+) -> Tuple[Optional[Any], Optional[Any]]:
+    """Loads the Hugging Face tokenizer and model."""
+    tokenizer, model = None, None
+    try:
+        status_text.text(f"HF Train Helper: Loading tokenizer '{model_choice}'...")
+        progress_bar.progress(0.1)
+        with st.spinner(f'Loading tokenizer {model_choice}...'):
+            tokenizer = AutoTokenizer.from_pretrained(model_choice)
+
+        status_text.text(f"HF Train Helper: Loading model '{model_choice}'...")
+        progress_bar.progress(0.2)
+        with st.spinner(f'Loading model {model_choice} for {num_labels} labels...'):
+            model = AutoModelForSequenceClassification.from_pretrained(
+                model_choice,
+                num_labels=num_labels,
+                problem_type="multi_label_classification",
+                # Allow loading weights even if classifier head size differs (will be resized)
+                ignore_mismatched_sizes=True
+            )
+            # Ensure the model's config reflects the correct number of labels after loading
+            if model.config.num_labels != num_labels:
+                st.warning(f"HF Train Helper: Model config label count ({model.config.num_labels}) differs from required ({num_labels}). Adjusting config.")
+                model.config.num_labels = num_labels
+        st.success(f"HF Train Helper: Model and tokenizer '{model_choice}' loaded.")
+        return tokenizer, model
+    except OSError as e:
+        st.error(f"HF Train Helper: Could not find model/tokenizer '{model_choice}'. Check name or internet connection. Error: {e}")
+        return None, None
+    except Exception as e:
+        st.error(f"HF Train Helper: Error loading model/tokenizer: {e}")
+        return None, None
+
+
+def _tokenize_data(
+    tokenizer: Any, train_texts: List[str], val_texts: List[str], progress_bar: Any, status_text: Any
+) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """Tokenizes the training and validation text data."""
+    status_text.text("HF Train Helper: Tokenizing text data...")
+    progress_bar.progress(0.4)
+    try:
+        with st.spinner('Tokenizing training and validation sets...'):
+            # Ensure all inputs are strings, replace None/NaN with empty string
+            train_texts_clean = [str(t) if pd.notna(t) else "" for t in train_texts]
+            val_texts_clean = [str(t) if pd.notna(t) else "" for t in val_texts]
+
+            train_encodings = tokenizer(train_texts_clean, truncation=True, padding=True, max_length=512)
+            val_encodings = tokenizer(val_texts_clean, truncation=True, padding=True, max_length=512)
+        st.success("HF Train Helper: Tokenization complete.")
+        return train_encodings, val_encodings
+    except Exception as e:
+        st.error(f"HF Train Helper: Error during tokenization: {e}")
+        return None, None
+
+
+class TextDataset(torch.utils.data.Dataset):
+    """Simple PyTorch Dataset for Hugging Face text classification."""
+    def __init__(self, encodings: Dict[str, Any], labels: List[np.ndarray]):
+        self.encodings = encodings
+        self.labels = labels
+        # Basic validation
+        if not self.encodings or 'input_ids' not in self.encodings:
+            raise ValueError("Encodings dictionary is invalid or missing 'input_ids'.")
+        if len(self.encodings['input_ids']) != len(self.labels):
+            raise ValueError(f"Mismatch between number of encodings ({len(self.encodings['input_ids'])}) and labels ({len(self.labels)}).")
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        # Ensure all encoding values are converted to tensors
+        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+        # Ensure labels are float tensors as expected by HF for multi-label
+        item['labels'] = torch.tensor(self.labels[idx], dtype=torch.float)
+        return item
+
+    def __len__(self) -> int:
+        # Safely get length from 'input_ids'
+        return len(self.encodings.get('input_ids', []))
+
+
+def _create_datasets(
+    train_encodings: Dict[str, Any], train_labels_encoded: List[np.ndarray],
+    val_encodings: Dict[str, Any], val_labels_encoded: List[np.ndarray],
+    progress_bar: Any, status_text: Any
+) -> Tuple[Optional[TextDataset], Optional[TextDataset]]:
+    """Creates PyTorch datasets from tokenized data and labels."""
+    status_text.text("HF Train Helper: Creating PyTorch datasets...")
+    progress_bar.progress(0.5)
+    try:
+        train_dataset = TextDataset(train_encodings, train_labels_encoded)
+        eval_dataset = TextDataset(val_encodings, val_labels_encoded)
+        if len(train_dataset) == 0 or len(eval_dataset) == 0:
+            raise ValueError("Created an empty training or evaluation dataset after encoding.")
+        st.success("HF Train Helper: Datasets created successfully.")
+        return train_dataset, eval_dataset
+    except ValueError as e:
+        st.error(f"HF Train Helper: Error creating dataset: {e}")
+        return None, None
+    except Exception as e:
+        st.error(f"HF Train Helper: Unexpected error creating dataset: {e}")
+        return None, None
+
+
+def _setup_training_arguments(
+    model_choice: str, num_epochs: int, train_dataset_len: int,
+    progress_bar: Any, progress_text: Any, status_text: Any
+) -> Tuple[Optional[TrainingArguments], Optional[StProgressCallback], Optional[int]]:
+    """Sets up Hugging Face TrainingArguments and the progress callback."""
+    status_text.text("HF Train Helper: Configuring training arguments...")
+    progress_bar.progress(0.55)
+    try:
+        # --- Determine Batch Size & Gradient Accumulation ---
+        # Heuristic: Smaller batch size for larger models or if no GPU
+        is_large_model = any(m in model_choice for m in ["large", "roberta-base", "deberta-v3-large"]) # Add more large models if needed
+        has_gpu = torch.cuda.is_available()
+        base_batch_size = 4 if is_large_model else 8
+        effective_batch_size = base_batch_size // (1 if has_gpu else 2) # Halve if no GPU
+        train_batch_size = max(1, effective_batch_size)
+        eval_batch_size = train_batch_size * 2 # Often can use larger batch for eval
+
+        # Aim for a virtual batch size of ~16 if possible
+        gradient_accumulation_steps = max(1, 16 // train_batch_size)
+
+        st.write(f"HF Train Helper: Using Train Batch Size: {train_batch_size}, Grad Accumulation: {gradient_accumulation_steps} (GPU: {has_gpu})")
+
+        # --- Calculate Total Steps ---
+        world_size = int(os.environ.get("WORLD_SIZE", 1)) # For distributed training awareness
+        updates_per_epoch = max(1, train_dataset_len // (train_batch_size * gradient_accumulation_steps * world_size)) + \
+                            (1 if train_dataset_len % (train_batch_size * gradient_accumulation_steps * world_size) != 0 else 0)
+        total_training_steps = max(1, updates_per_epoch * num_epochs)
+        st.write(f"HF Train Helper: Estimated total training steps: {total_training_steps}")
+
+        # --- Define Training Arguments ---
+        training_args = TrainingArguments(
+            output_dir='./results_hf_training',          # Directory for checkpoints and logs
+            num_train_epochs=num_epochs,
+            per_device_train_batch_size=train_batch_size,
+            per_device_eval_batch_size=eval_batch_size,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+            warmup_ratio=0.1,                             # Linear warmup over 10% of training
+            weight_decay=0.01,                            # Regularization
+            logging_dir='./logs_hf_training',             # Directory for TensorBoard logs
+            logging_strategy="epoch",                     # Log metrics every epoch
+            evaluation_strategy="epoch",                  # Evaluate every epoch
+            save_strategy="epoch",                        # Save checkpoint every epoch
+            save_total_limit=2,                           # Keep only the last 2 checkpoints
+            load_best_model_at_end=True,                  # Load the best model found during training
+            metric_for_best_model="micro_f1",             # Metric to determine the "best" model
+            greater_is_better=True,                       # Higher micro_f1 is better
+            report_to="none",                             # Disable reporting to external services (like W&B)
+            fp16=has_gpu,                                 # Enable mixed precision training if GPU is available
+            dataloader_pin_memory=has_gpu,                # Pin memory for faster data transfer if GPU
+            # Use multiple workers for data loading if GPU available and CPU cores allow
+            dataloader_num_workers=min(4, os.cpu_count() // 2) if has_gpu else 0
+        )
+
+        # --- Setup Progress Callback ---
+        progress_callback = StProgressCallback(progress_bar, progress_text, status_text, total_training_steps)
+
+        st.success("HF Train Helper: Training arguments configured.")
+        return training_args, progress_callback, total_training_steps
+
+    except Exception as e:
+        st.error(f"HF Train Helper: Error setting up training arguments: {e}")
+        return None, None, None
+
+
+def _initialize_trainer(
+    model: Any, training_args: TrainingArguments, train_dataset: TextDataset,
+    eval_dataset: TextDataset, progress_callback: StProgressCallback
+) -> Trainer:
+    """Initializes the Hugging Face Trainer."""
+    st.write("HF Train Helper: Initializing Trainer...")
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+        compute_metrics=compute_metrics, # Function to calculate metrics during evaluation
+        callbacks=[progress_callback]     # Custom callback for Streamlit progress updates
+    )
+    st.success("HF Train Helper: Trainer initialized.")
+    return trainer
+
+
+# --- Model Saving/Loading ---
+def save_hf_model_artifacts(model: Any, tokenizer: Any, label_map: Dict[str, int], rules_df: pd.DataFrame, save_path: str):
+    """
+    Saves the HF model, tokenizer, label map, and rules DataFrame to a specified directory.
+
+    Args:
+        model: The trained Hugging Face model object.
+        tokenizer: The Hugging Face tokenizer object.
+        label_map: Dictionary mapping label names to integer indices.
+        rules_df: DataFrame containing rules ('Label', 'Keywords', 'Confidence Threshold').
+        save_path: The directory path where artifacts should be saved.
+
+    Returns:
+        True if saving was successful, False otherwise.
+    """
+    if model is None or tokenizer is None or label_map is None or rules_df is None:
+        st.error("HF Save Error: One or more required components (model, tokenizer, label_map, rules_df) are missing. Cannot save.")
+        return False
+
+    try:
+        save_path_obj = Path(save_path)
+        st.info(f"HF Save: Saving model artifacts to '{save_path_obj}'...")
+        save_path_obj.mkdir(parents=True, exist_ok=True) # Create directory if it doesn't exist
+
+        # Save model and tokenizer
+        model.save_pretrained(save_path_obj)
+        tokenizer.save_pretrained(save_path_obj)
+
+        # Save label map
+        with open(save_path_obj / "label_map.json", 'w', encoding='utf-8') as f:
+            json.dump(label_map, f, indent=4)
+
+        # --- Prepare and Save Rules DataFrame ---
+        st.write("HF Save: Preparing rules DataFrame for saving...")
+        rules_df_to_save = rules_df.copy()
+        required_cols = ['Label', 'Keywords', 'Confidence Threshold']
+        default_threshold = config.DEFAULT_HF_THRESHOLD # Use config default
+
+        # Ensure required columns exist, adding defaults if necessary
+        for col in required_cols:
+            if col not in rules_df_to_save.columns:
+                st.warning(f"HF Save: Rules DataFrame missing column '{col}'. Adding default values.")
+                if col == 'Keywords':
+                    rules_df_to_save[col] = 'N/A (Auto-added)'
+                elif col == 'Confidence Threshold':
+                    rules_df_to_save[col] = default_threshold
+                else: # Should only be 'Label', which is critical
+                     st.error(f"HF Save Error: Critical column '{col}' missing in rules_df. Cannot reliably save rules.")
+                     # Optionally save anyway with placeholder labels, or return False
+                     # For now, let's add placeholder labels if possible, but warn heavily
+                     if 'Label' not in rules_df_to_save.columns and label_map:
+                         rules_df_to_save['Label'] = list(label_map.keys())[:len(rules_df_to_save)] # Risky if lengths mismatch
+                     else:
+                         return False # Cannot proceed without labels
+
+        # Select only the required columns in the standard order
+        rules_df_to_save = rules_df_to_save[required_cols]
+
+        # Clean and validate 'Confidence Threshold'
+        rules_df_to_save['Confidence Threshold'] = pd.to_numeric(rules_df_to_save['Confidence Threshold'], errors='coerce')
+        rules_df_to_save['Confidence Threshold'] = rules_df_to_save['Confidence Threshold'].fillna(default_threshold).clip(0.05, 0.95)
+
+        # Clean 'Keywords' (ensure it's string, fill NaNs)
+        rules_df_to_save['Keywords'] = rules_df_to_save['Keywords'].fillna('N/A').astype(str)
+
+        # Save the cleaned rules DataFrame
+        rules_path = save_path_obj / "rules.csv"
+        rules_df_to_save.to_csv(rules_path, index=False, encoding='utf-8')
+        st.write(f"HF Save: Rules saved to '{rules_path}'.")
+
+        st.success(f"✅ HF Model artifacts successfully saved to '{save_path_obj}'")
+        return True
+
+    except Exception as e:
+        st.error(f"HF Save Error: Failed to save model artifacts: {e}")
+        st.error(traceback.format_exc())
+        return False
+
+
+def load_hf_model_artifacts(load_path: str) -> Tuple[Optional[Any], Optional[Any], Optional[Dict[str, int]], Optional[pd.DataFrame]]:
+    """
+    Loads HF model artifacts (model, tokenizer, label map, rules) from a specified directory.
+
+    Args:
+        load_path: The directory path from which to load artifacts.
+
+    Returns:
+        A tuple containing:
+        - Loaded model object (or None on error).
+        - Loaded tokenizer object (or None on error).
+        - Loaded label map (dictionary) (or None on error).
+        - Loaded rules DataFrame (or None on error).
+    """
+    st.info(f"HF Load: Attempting to load model artifacts from '{load_path}'...")
+    load_path_obj = Path(load_path)
+    default_threshold = config.DEFAULT_HF_THRESHOLD
+
+    if not load_path_obj.is_dir():
+        st.error(f"HF Load Error: Directory not found: '{load_path_obj}'")
+        return None, None, None, None
+
+    model, tokenizer, label_map, rules_df = None, None, None, None
+
+    try:
+        # --- Check for essential files ---
+        model_config_path = load_path_obj / "config.json"
+        tokenizer_config_path = load_path_obj / "tokenizer_config.json"
+        label_map_path = load_path_obj / "label_map.json"
+        rules_path = load_path_obj / "rules.csv" # Rules file is optional but preferred
+
+        required_files = [model_config_path, tokenizer_config_path, label_map_path]
+        missing_files = [p for p in required_files if not p.exists()]
+        if missing_files:
+            st.error(f"HF Load Error: Essential file(s) missing in '{load_path_obj}': {', '.join(p.name for p in missing_files)}")
+            return None, None, None, None
+
+        # --- Load Label Map ---
+        st.write("HF Load: Loading label map...")
+        with open(label_map_path, 'r', encoding='utf-8') as f:
+            label_map = json.load(f)
+        if not isinstance(label_map, dict) or not label_map:
+             raise ValueError("Loaded label_map.json is invalid or empty.")
+        st.write(f"HF Load: Label map loaded ({len(label_map)} labels).")
+
+        # --- Load Rules DataFrame (with fallback) ---
+        required_rules_cols = ['Label', 'Keywords', 'Confidence Threshold']
+        if rules_path.exists():
+            st.write("HF Load: Loading rules file...")
+            try:
+                rules_df = pd.read_csv(rules_path, encoding='utf-8')
+                # Validate and clean loaded rules
+                if 'Label' not in rules_df.columns:
+                    raise ValueError("Rules file is missing the critical 'Label' column.")
+
+                # Add missing optional columns with defaults
+                if 'Keywords' not in rules_df.columns:
+                    st.warning("HF Load: Rules file missing 'Keywords' column. Adding default 'N/A'.")
+                    rules_df['Keywords'] = 'N/A'
+                if 'Confidence Threshold' not in rules_df.columns:
+                    st.warning(f"HF Load: Rules file missing 'Confidence Threshold' column. Adding default {default_threshold}.")
+                    rules_df['Confidence Threshold'] = default_threshold
+
+                # Select and order standard columns
+                rules_df = rules_df[required_rules_cols]
+
+                # Clean data types and values
+                rules_df['Confidence Threshold'] = pd.to_numeric(rules_df['Confidence Threshold'], errors='coerce').fillna(default_threshold).clip(0.05, 0.95)
+                rules_df['Keywords'] = rules_df['Keywords'].fillna('N/A').astype(str)
+                rules_df['Label'] = rules_df['Label'].astype(str) # Ensure labels are strings
+
+                # Check for consistency between rules labels and label map
+                rules_labels = set(rules_df['Label'])
+                map_labels = set(label_map.keys())
+                if rules_labels != map_labels:
+                    st.warning(f"HF Load Warning: Labels in rules.csv do not exactly match labels in label_map.json.")
+                    st.warning(f"  Labels only in rules: {rules_labels - map_labels}")
+                    st.warning(f"  Labels only in map: {map_labels - rules_labels}")
+                    # Optional: Could try to reconcile, e.g., keep only rules for labels in map
+                    rules_df = rules_df[rules_df['Label'].isin(map_labels)]
+                    st.warning("  Keeping only rules for labels present in the label map.")
+
+                st.write(f"HF Load: Rules DataFrame loaded and validated ({len(rules_df)} rules).")
+
+            except Exception as e_rules:
+                st.error(f"HF Load Error: Failed to load or process '{rules_path}': {e_rules}. Proceeding without rules.")
+                rules_df = None # Fallback to no rules if loading/processing fails
+        else:
+            st.warning(f"HF Load: Rules file ('{rules_path.name}') not found in '{load_path_obj}'. Model will use default thresholds and no keyword overrides.")
+            # Create a default DataFrame structure if needed downstream, matching the label map
+            rules_df = pd.DataFrame({
+                'Label': list(label_map.keys()),
+                'Keywords': 'N/A (File not found)',
+                'Confidence Threshold': default_threshold
+            })
+            st.write("HF Load: Created default rules structure based on label map.")
+
+
+        # --- Load Model ---
+        st.write("HF Load: Loading model...")
+        with st.spinner("Loading model weights..."):
+            model = AutoModelForSequenceClassification.from_pretrained(
+                load_path_obj,
+                # Allow loading weights even if classifier head size differs from saved config
+                # This is important if the model was fine-tuned on a different number of labels previously
+                ignore_mismatched_sizes=True
+            )
+        # Crucially, ensure the loaded model's config matches the *loaded label map* size
+        num_labels_from_map = len(label_map)
+        if model.config.num_labels != num_labels_from_map:
+            st.warning(f"HF Load: Model's internal config label count ({model.config.num_labels}) differs from loaded label map ({num_labels_from_map}). Adjusting model config to match label map.")
+            model.config.num_labels = num_labels_from_map
+            # Potentially resize the classifier layer if necessary, though ignore_mismatched_sizes often handles this implicitly
+            # model.classifier = torch.nn.Linear(model.config.hidden_size, num_labels_from_map) # Example if manual resize needed
+        st.write("HF Load: Model loaded.")
+
+        # --- Load Tokenizer ---
+        st.write("HF Load: Loading tokenizer...")
+        with st.spinner("Loading tokenizer configuration..."):
+            tokenizer = AutoTokenizer.from_pretrained(load_path_obj)
+        st.write("HF Load: Tokenizer loaded.")
+
+        st.success(f"✅ HF Model artifacts successfully loaded from '{load_path_obj}'")
+        return model, tokenizer, label_map, rules_df
+
+    except json.JSONDecodeError as e_json:
+        st.error(f"HF Load Error: Failed to decode JSON file (likely label_map.json): {e_json}")
+        return None, None, None, None
+    except ValueError as e_val:
+        st.error(f"HF Load Error: Data validation issue: {e_val}")
+        return None, None, None, None
+    except OSError as e_os:
+         st.error(f"HF Load Error: File system error (e.g., permission denied, file not found during model/tokenizer load): {e_os}")
+         return None, None, None, None
+    except Exception as e:
+        st.error(f"HF Load Error: An unexpected error occurred: {e}")
+        st.error(traceback.format_exc())
+        return None, None, None, None
+
+
+# --- Rule Extraction using Chi-Squared ---
+def extract_hf_rules(
+    full_train_texts: List[str],
+    full_train_labels_encoded: List[np.ndarray], # Expects encoded labels for the *entire* training set
+    label_map: Dict[str, int]
+    ) -> pd.DataFrame:
+    """
+    Extracts potential keyword associations for each label using Chi-Squared feature selection.
+
+    This function analyzes the provided training data to find words that are statistically
+    significant for each label, providing a starting point for rule-based overrides.
+
+    Args:
+        full_train_texts: List of all text examples from the *entire* training set.
+        full_train_labels_encoded: List of multi-hot encoded labels (NumPy arrays)
+                                   corresponding to `full_train_texts`.
+        label_map: Dictionary mapping label names (str) to their integer indices (int).
+
+    Returns:
+        A pandas DataFrame with columns ['Label', 'Keywords', 'Confidence Threshold'].
+        'Keywords' contains comma-separated top terms based on Chi-Squared scores.
+        'Confidence Threshold' is initialized to a default value from config.
+        Returns an empty or partially filled DataFrame on error or if no keywords found.
+    """
+    st.info("HF Rules Extractor: Starting keyword association analysis (Chi-Squared)...")
+    required_columns = ['Label', 'Keywords', 'Confidence Threshold']
+    default_threshold = config.DEFAULT_HF_THRESHOLD
+    default_keywords = "N/A" # Default keyword string
+
+    # --- Input Validation ---
+    if not full_train_texts or full_train_labels_encoded is None or not label_map:
+        st.warning("HF Rules Extractor: Cannot extract rules - missing training texts, encoded labels, or label map.")
+        # Return an empty DataFrame with the correct columns
+        return pd.DataFrame(columns=required_columns)
+
+    if not isinstance(full_train_texts, list) or not isinstance(full_train_labels_encoded, list):
+         st.error("HF Rules Extractor: Texts and encoded labels must be lists.")
+         return pd.DataFrame(columns=required_columns)
+
+    if len(full_train_texts) != len(full_train_labels_encoded):
+         st.error(f"HF Rules Extractor: Mismatch between number of texts ({len(full_train_texts)}) and labels ({len(full_train_labels_encoded)}).")
+         return pd.DataFrame(columns=required_columns)
+
+    try:
+        # Ensure encoded labels are a NumPy array of integers for chi2
+        train_labels_array = np.array(full_train_labels_encoded, dtype=int)
+    except ValueError as e:
+        st.error(f"HF Rules Extractor: Could not convert encoded labels to NumPy array (check for consistent shapes?): {e}")
+        return pd.DataFrame(columns=required_columns)
+
+    num_labels = len(label_map)
+    num_texts = len(full_train_texts)
+
+    if train_labels_array.shape != (num_texts, num_labels):
+        st.error(f"HF Rules Extractor: Shape mismatch. Texts: {num_texts}, Encoded Labels Shape: {train_labels_array.shape}, Expected Labels Dim: {num_labels}.")
+        return pd.DataFrame(columns=required_columns)
+
+    # --- Create Reverse Label Map ---
+    reverse_label_map = {v: k for k, v in label_map.items()}
+    all_labels_in_map = list(label_map.keys()) # For creating default entries later
+
+    # --- Vectorization ---
+    st.write("HF Rules Extractor: Vectorizing text data...")
+    try:
+        with st.spinner("Vectorizing text using CountVectorizer..."):
+            # Use CountVectorizer: good for interpretability with Chi-Squared
+            vectorizer = CountVectorizer(
+                max_features=1500,      # Limit vocabulary size
+                stop_words='english',   # Remove common English stop words
+                binary=False,           # Use term frequency (counts)
+                min_df=3                # Ignore terms appearing in < 3 documents
+            )
+            # Ensure texts are strings
+            cleaned_texts = [str(text) if pd.notna(text) else "" for text in full_train_texts]
+            X = vectorizer.fit_transform(cleaned_texts)
+            feature_names = vectorizer.get_feature_names_out()
+
+            if X.shape[0] == 0 or X.shape[1] == 0:
+                 st.warning("HF Rules Extractor: Vectorization resulted in an empty feature matrix (X). Check input text or vectorizer parameters.")
+                 # Return default DF structure for all labels
+                 return pd.DataFrame([{
+                     'Label': lbl,
+                     'Keywords': f'{default_keywords} (Empty Matrix)',
+                     'Confidence Threshold': default_threshold
+                 } for lbl in all_labels_in_map])
+
+            st.write(f"HF Rules Extractor: Vectorization complete. Shape: {X.shape}")
+
+    except Exception as e:
+        st.error(f"HF Rules Extractor: Error during text vectorization: {e}")
+        # Return default DF structure
+        return pd.DataFrame([{
+            'Label': lbl,
+            'Keywords': f'{default_keywords} (Vectorization Error)',
+            'Confidence Threshold': default_threshold
+        } for lbl in all_labels_in_map])
+
+    # --- Chi-Squared Calculation Per Label ---
+    st.info("HF Rules Extractor: Calculating Chi-Squared scores for each label...")
+    rules_list = []
+    num_features = len(feature_names)
+
+    with st.spinner("Analyzing feature relevance for each label..."):
+        for label_idx in range(num_labels):
+            label_name = reverse_label_map.get(label_idx, f"UnknownLabel_{label_idx}")
+            y = train_labels_array[:, label_idx] # Target vector for this label
+
+            # Default keywords in case of issues
+            current_keywords = default_keywords
+
+            # Check if the target variable has variance (Chi2 requires at least two classes)
+            if np.std(y) < 1e-9: # Check for near-zero variance
+                st.warning(f"HF Rules Extractor: Skipping Chi2 for label '{label_name}' due to zero or near-zero variance in labels.")
+                current_keywords = f"{default_keywords} (No Variance)"
+            else:
+                try:
+                    # Calculate Chi-Squared scores
+                    chi2_scores, _ = chi2(X, y) # Returns scores and p-values
+
+                    # Handle potential NaNs or Infs in scores (can happen with sparse data)
+                    valid_scores_mask = ~np.isnan(chi2_scores) & ~np.isinf(chi2_scores)
+                    if not np.any(valid_scores_mask):
+                         st.warning(f"HF Rules Extractor: No valid Chi2 scores found for label '{label_name}'.")
+                         current_keywords = f"{default_keywords} (No Valid Scores)"
+                    else:
+                        # Combine valid feature names and their scores
+                        feature_scores = sorted(
+                            zip(feature_names[valid_scores_mask], chi2_scores[valid_scores_mask]),
+                            key=lambda item: item[1], # Sort by score (higher is better)
+                            reverse=True
+                        )
+
+                        # Select top N features (e.g., 7)
+                        top_n = 7
+                        top_features = feature_scores[:top_n]
+
+                        if top_features:
+                            # Join the keywords (feature names) with commas
+                            current_keywords = ', '.join([word for word, score in top_features])
+                        else:
+                            st.warning(f"HF Rules Extractor: No significant features found for label '{label_name}' after Chi2 calculation.")
+                            current_keywords = f"{default_keywords} (No Significant Features)"
+
+                except ValueError as e_chi2_val:
+                     # This often happens if a label has too few positive examples relative to features
+                     st.warning(f"HF Rules Extractor: Chi2 ValueError for label '{label_name}' (likely low sample count or variance issue): {e_chi2_val}")
+                     current_keywords = f"{default_keywords} (Low Variance/Samples)"
+                except Exception as e_chi2:
+                    st.error(f"HF Rules Extractor: Unexpected error during Chi2 calculation for label '{label_name}': {e_chi2}")
+                    current_keywords = f"{default_keywords} (Calculation Error)"
+
+            # Append the result for this label
+            rules_list.append({
+                'Label': label_name,
+                'Keywords': current_keywords,
+                'Confidence Threshold': default_threshold # Initialize with default threshold
+            })
+
+    st.success("HF Rules Extractor: Keyword extraction finished.")
+    return pd.DataFrame(rules_list, columns=required_columns)
+
+
+# --- HF Classification (Applies Rules) ---
+
+def classify_texts_with_hf(
+    texts: List[str],
+    model: Any,
+    tokenizer: Any,
+    label_map: Dict[str, int],
+    rules_df: Optional[pd.DataFrame]
+) -> List[List[str]]:
+    """
+    Classifies a list of texts using a trained Hugging Face model and tokenizer.
+
+    Applies confidence thresholds and keyword overrides based on the provided rules_df.
+    Includes a fallback mechanism to assign the highest probability label if no
+    other labels meet the criteria.
+
+    Args:
+        texts: A list of strings to classify.
+        model: The trained Hugging Face model object.
+        tokenizer: The Hugging Face tokenizer object.
+        label_map: Dictionary mapping label names to integer indices.
+        rules_df: DataFrame containing rules with columns 'Label', 'Keywords',
+                  'Confidence Threshold'. If None or invalid, uses defaults.
+
+    Returns:
+        A list of lists, where each inner list contains the predicted label strings
+        for the corresponding input text. Returns [['Error']] per text on critical failure.
+    """
+    if not texts:
+        st.warning("HF Classify: Input text list is empty.")
+        return []
+    if model is None or tokenizer is None or label_map is None:
+        st.error("HF Classify Error: Missing required components (model, tokenizer, or label_map).")
+        return [["Error: Missing Model Components"] for _ in texts]
+
+    # --- 1. Load and Prepare Rules ---
+    thresholds, keyword_override_map = _prepare_rules_for_classification(rules_df, label_map)
+
+    # --- 2. Setup for Classification ---
+    st.info("HF Classify: Starting classification...")
+    reverse_label_map = {v: k for k, v in label_map.items()}
+    num_labels = len(label_map)
+    all_results = []
+    batch_size = 16 # Adjust based on available memory (especially GPU)
+    progress_bar = st.progress(0.0)
+    progress_text = st.empty()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    st.write(f"HF Classify: Running on device: {device}")
+
+    try:
+        model.to(device) # Move model to the appropriate device
+        model.eval()     # Set model to evaluation mode
+
+        # Ensure texts are strings, handle potential NaN/None values
+        cleaned_texts = [str(t) if pd.notna(t) else "" for t in texts]
+        total_texts = len(cleaned_texts)
+
+        # --- 3. Process Texts in Batches ---
+        for i in range(0, total_texts, batch_size):
+            batch_texts = cleaned_texts[i : min(i + batch_size, total_texts)]
+            if not batch_texts: # Should not happen with the loop condition, but safe check
+                continue
+
+            current_batch_size = len(batch_texts)
+            progress_text.text(f"HF Classifying: Processing texts {i+1}-{i+current_batch_size} of {total_texts}...")
+
+            try:
+                # --- Tokenization and Prediction ---
+                inputs = tokenizer(
+                    batch_texts,
+                    truncation=True,
+                    padding=True,
+                    return_tensors="pt",
+                    max_length=512 # Standard max length for many BERT-like models
+                )
+                # Move input tensors to the same device as the model
+                inputs = {k: v.to(device) for k, v in inputs.items()}
+
+                with torch.no_grad(): # Disable gradient calculations for inference
+                    outputs = model(**inputs)
+                    # Apply sigmoid to logits for multi-label probabilities
+                    probabilities = torch.sigmoid(outputs.logits).cpu().numpy() # Move results back to CPU
+
+                # --- Apply Rules and Fallback Logic per Text in Batch ---
+                batch_final_labels = []
+                for j in range(current_batch_size): # Index within the current batch
+                    text_idx = i + j # Overall index in the original list
+                    text_probabilities = probabilities[j] # Probabilities for this text
+                    original_text = batch_texts[j] # Original text for keyword matching
+
+                    final_labels_for_text = _apply_rules_and_fallback(
+                        text_probabilities,
+                        original_text,
+                        thresholds,
+                        keyword_override_map,
+                        reverse_label_map,
+                        num_labels
+                    )
+                    batch_final_labels.append(final_labels_for_text)
+
+                all_results.extend(batch_final_labels)
+
+            except Exception as e_batch:
+                st.error(f"HF Classify Error: Failed processing batch starting at index {i}: {e_batch}")
+                st.error(traceback.format_exc())
+                # Add error placeholders for texts in the failed batch
+                all_results.extend([["Error: Batch Processing Failed"] for _ in range(current_batch_size)])
+
+            # Update progress bar
+            progress = min(1.0, (i + current_batch_size) / total_texts) if total_texts > 0 else 1.0
+            progress_bar.progress(progress)
+
+        # --- 4. Finalization ---
+        progress_text.text(f"HF Classification completed for {total_texts} texts.")
+        st.success("HF Classification finished successfully.")
+        # Consider removing this or making it optional - results are returned
+        # st.success("View results in the Results tab.")
+        return all_results
+
+    except Exception as e_outer:
+         st.error(f"HF Classify Error: A critical error occurred during classification setup or loop: {e_outer}")
+         st.error(traceback.format_exc())
+         # Return errors for all texts if setup fails
+         return [["Error: Classification Setup Failed"] for _ in texts]
+    finally:
+        # Ensure model is moved back to CPU if it was on GPU, to free VRAM
+        # model.cpu() # Or handle device management more carefully if model is reused
+        pass
+
+
+def _prepare_rules_for_classification(
+    rules_df: Optional[pd.DataFrame],
+    label_map: Dict[str, int]
+) -> Tuple[Dict[str, float], Dict[str, List[str]]]:
+    """
+    Processes the rules DataFrame to extract thresholds and keyword overrides.
+
+    Args:
+        rules_df: DataFrame with 'Label', 'Confidence Threshold', 'Keywords'.
+        label_map: Dictionary mapping label names to indices.
+
+    Returns:
+        A tuple containing:
+        - thresholds (Dict[str, float]): Map from label name to confidence threshold.
+        - keyword_override_map (Dict[str, List[str]]): Map from label name to list of keywords.
+    """
+    default_threshold = config.DEFAULT_HF_THRESHOLD
+    thresholds: Dict[str, float] = {}
+    keyword_override_map: Dict[str, List[str]] = {}
+
+    all_known_labels = set(label_map.keys())
+
+    if rules_df is None or rules_df.empty or not all(col in rules_df.columns for col in ['Label', 'Confidence Threshold', 'Keywords']):
+        st.warning("HF Classify Helper: Rules DataFrame is missing, empty, or lacks required columns ('Label', 'Confidence Threshold', 'Keywords'). Using default threshold for all labels and no keyword overrides.")
+        thresholds = {label: default_threshold for label in all_known_labels}
+        keyword_override_map = {}
+    else:
+        st.info("HF Classify Helper: Processing thresholds and keywords from rules DataFrame...")
+        processed_rules = rules_df.copy()
+        try:
+            # Clean and validate thresholds
+            processed_rules['Confidence Threshold'] = pd.to_numeric(processed_rules['Confidence Threshold'], errors='coerce')
+            processed_rules['Confidence Threshold'] = processed_rules['Confidence Threshold'].fillna(default_threshold).clip(0.05, 0.95)
+            thresholds = dict(zip(processed_rules['Label'], processed_rules['Confidence Threshold']))
+
+            # Ensure all labels from label_map have a threshold
+            for label in all_known_labels:
+                if label not in thresholds:
+                    st.warning(f"HF Classify Helper: Label '{label}' from label_map not found in rules thresholds. Assigning default threshold {default_threshold}.")
+                    thresholds[label] = default_threshold
+
+            # Process keywords
+            processed_rules['Keywords'] = processed_rules['Keywords'].fillna('').astype(str)
+            for _, row in processed_rules.iterrows():
+                label = row['Label']
+                if label not in all_known_labels:
+                    st.warning(f"HF Classify Helper: Rule found for label '{label}' which is not in the current label_map. Ignoring keywords for this rule.")
+                    continue
+
+                # Split keywords, clean them, and filter out 'N/A' or empty strings
+                keywords_raw = str(row['Keywords']).split(',')
+                keywords_clean = [kw.strip().lower() for kw in keywords_raw if kw.strip() and "N/A" not in kw]
+
+                if keywords_clean:
+                    keyword_override_map[label] = keywords_clean
+            st.write(f"HF Classify Helper: Loaded thresholds for {len(thresholds)} labels and keyword rules for {len(keyword_override_map)} labels.")
+
+        except Exception as e:
+            st.error(f"HF Classify Helper: Error processing rules DataFrame: {e}. Falling back to default thresholds and no keywords.")
+            thresholds = {label: default_threshold for label in all_known_labels}
+            keyword_override_map = {}
+
+    return thresholds, keyword_override_map
+
+
+def _apply_rules_and_fallback(
+    probabilities: np.ndarray,
+    text: str,
+    thresholds: Dict[str, float],
+    keyword_override_map: Dict[str, List[str]],
+    reverse_label_map: Dict[int, str],
+    num_labels: int,
+    fallback_threshold: float = 0.1 # Minimum probability for fallback label
+) -> List[str]:
+    """
+    Applies thresholds, keyword overrides, and fallback logic to determine final labels for a single text.
+
+    Args:
+        probabilities: NumPy array of probabilities for each label for this text.
+        text: The original text string (used for keyword matching).
+        thresholds: Dictionary mapping label names to confidence thresholds.
+        keyword_override_map: Dictionary mapping label names to lists of keywords.
+        reverse_label_map: Dictionary mapping label indices to label names.
+        num_labels: Total number of labels.
+        fallback_threshold: Minimum probability required to assign the highest-probability label as a fallback.
+
+    Returns:
+        A list of predicted label strings for the text.
+    """
+    default_threshold = config.DEFAULT_HF_THRESHOLD # Consistent default
+    text_lower = text.lower() # Pre-lower for efficient keyword matching
+    initial_labels = set()
+
+    # 1. Determine initial labels based on model probabilities and thresholds
+    for label_idx in range(num_labels):
+        label_name = reverse_label_map.get(label_idx)
+        if label_name is None: continue # Should not happen if maps are consistent
+
+        threshold = thresholds.get(label_name, default_threshold)
+        if probabilities[label_idx] >= threshold:
+            initial_labels.add(label_name)
+
+    # 2. Apply keyword overrides (add labels if keyword found, even if below threshold)
+    final_labels = initial_labels.copy()
+    if keyword_override_map:
+        for label_name, keywords in keyword_override_map.items():
+            # Only add if not already present based on threshold
+            if label_name in final_labels:
+                continue
+
+            # Check if any keyword for this label is present in the text
+            found_keyword = False
+            for keyword in keywords:
+                if not keyword: continue # Skip empty keywords just in case
+                try:
+                    # Use regex for whole word matching (\b)
+                    if re.search(r'\b' + re.escape(keyword) + r'\b', text_lower):
+                        found_keyword = True
+                        break
+                except re.error:
+                    # Fallback to simple substring check if regex fails (e.g., special chars in keyword)
+                    st.warning(f"HF Classify Keyword Regex Error for keyword: '{keyword}'. Using simple substring check.", icon="⚠️")
+                    if keyword in text_lower:
+                        found_keyword = True
+                        break
+            # If a keyword was found, add the label
+            if found_keyword:
+                final_labels.add(label_name)
+
+    # 3. Fallback: If no labels assigned yet, assign the single highest probability label
+    #    (only if its probability exceeds the fallback_threshold)
+    if not final_labels and len(probabilities) > 0:
+        highest_prob_idx = np.argmax(probabilities)
+        highest_prob_value = probabilities[highest_prob_idx]
+
+        if highest_prob_value > fallback_threshold:
+            fallback_label = reverse_label_map.get(highest_prob_idx)
+            if fallback_label:
+                final_labels.add(fallback_label)
+                # Optional: Log when fallback is used for debugging/analysis
+                # st.caption(f"Fallback applied: '{fallback_label}' (Prob: {highest_prob_value:.3f})")
+
+    return sorted(list(final_labels)) # Return sorted list for consistency
+
+
+
+================================================
+FILE: llm_classifier.py
+================================================
+import streamlit as st
+import pandas as pd
+import requests
+import json
+import time
+import traceback
+import config # Import your config file
+from typing import List, Dict, Optional, Any
+
+# LangChain components
+from langchain_groq import ChatGroq
+from langchain_community.chat_models import ChatOllama
+from langchain_core.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain.output_parsers import OutputFixingParser
+from pydantic import BaseModel, Field, validator, ValidationError
+
+# --- Pydantic Models ---
+# Model for AI-generated hierarchy suggestion
+class AISuggestionSubSegment(BaseModel):
+    name: str = Field(..., description="Name of the sub-segment")
+    keywords: List[str] = Field(..., description="List of 3-7 relevant keywords for this sub-segment")
+
+class AISuggestionSegment(BaseModel):
+    name: str = Field(..., description="Name of the segment")
+    subsegments: List[AISuggestionSubSegment] = Field(..., description="List of subsegments within this segment")
+
+class AISuggestionCategory(BaseModel):
+    name: str = Field(..., description="Name of the category")
+    segments: List[AISuggestionSegment] = Field(..., description="List of segments within this category")
+
+class AISuggestionTheme(BaseModel):
+    name: str = Field(..., description="Name of the theme")
+    categories: List[AISuggestionCategory] = Field(..., description="List of categories within this theme")
+
+class AISuggestionHierarchy(BaseModel):
+    """Structure for the AI to generate the hierarchy."""
+    themes: List[AISuggestionTheme] = Field(..., description="The complete hierarchical structure.")
+
+# Model for single row categorization result
+class LLMCategorizationResult(BaseModel):
+    """Structure for the LLM to return classification for one text row."""
+    theme: Optional[str] = Field(None, description="Assigned theme, or null/None if not applicable.")
+    category: Optional[str] = Field(None, description="Assigned category, or null/None if not applicable.")
+    segment: Optional[str] = Field(None, description="Assigned segment, or null/None if not applicable.")
+    subsegment: Optional[str] = Field(None, description="Assigned sub-segment, or null/None if not applicable.")
+    reasoning: Optional[str] = Field(None, description="Brief explanation for the categorization.")
+
+
+# --- LLM Client Initialization ---
+@st.cache_resource # Cache the LLM client resource
+def initialize_llm_client(provider: str, endpoint: str, api_key: Optional[str], model_name: str):
+    """Initializes and returns the LangChain LLM client."""
+    st.info(f"LLM Init: Initializing client for {provider} - Model: {model_name}")
+    llm = None # Initialize llm to None
+    try:
+        if provider == "Groq":
+            if not api_key:
+                st.error("LLM Init Error: Groq API key is missing.")
+                return None
+            llm = ChatGroq(
+                temperature=config.DEFAULT_LLM_TEMPERATURE,
+                groq_api_key=api_key,
+                model_name=model_name,
+                request_timeout=60, # Longer timeout for potentially complex tasks
+            )
+        elif provider == "Ollama":
+             # Ollama uses base_url, not api_base in newer langchain
+            llm = ChatOllama(
+                base_url=endpoint,
+                model=model_name,
+                temperature=config.DEFAULT_LLM_TEMPERATURE,
+                request_timeout=120 # Potentially longer timeout for local models
+            )
+            # Simple check if Ollama endpoint is reachable (optional)
+            try:
+                requests.get(endpoint, timeout=5) # Quick check if endpoint is responsive
+            except requests.exceptions.ConnectionError:
+                 st.warning(f"LLM Init Warning: Cannot reach Ollama endpoint at {endpoint}. Ensure Ollama is running.")
+                 # Proceeding anyway, as Ollama might start later or be accessible by the LangChain lib differently
+            except Exception as e_check:
+                 st.warning(f"LLM Init Warning: Error during optional check of Ollama endpoint: {e_check}")
+
+        # Add other providers here (e.g., OpenAI, Gemini)
+        # elif provider == "OpenAI":
+        #     # from langchain_openai import ChatOpenAI
+        #     # llm = ChatOpenAI(...)
+        #     st.error("OpenAI provider not yet implemented.")
+        #     return None
+        else:
+            st.error(f"LLM Init Error: Unsupported provider '{provider}'")
+            return None
+
+        if llm: # Only test if llm was successfully initialized
+            # Simple invocation test to confirm basic connectivity and authentication
+            st.info("LLM Init: Testing client connection with a simple request...")
+            llm.invoke("Respond with 'OK'") # Use single quotes for clarity
+            st.success(f"✅ LLM Client ({provider} - {model_name}) Initialized and Responding.")
+            return llm
+        else:
+             # This case should ideally be caught by the provider checks, but as a safeguard:
+             st.error(f"LLM Init Error: Client for {provider} could not be initialized.")
+             return None
+
+    except Exception as e:
+        st.error(f"🔴 LLM Init Error: Failed to initialize {provider} client: {e}")
+        st.error(traceback.format_exc())
+        return None
+
+# --- Model Fetching ---
+def fetch_available_models(provider: str, endpoint: str, api_key: Optional[str]) -> List[str]:
+    """Fetches available model names from the selected provider's endpoint."""
+    st.info(f"Fetching models for {provider} from {endpoint}...")
+    headers = {}
+    models = []
+
+    try:
+        if provider == "Groq":
+            if not api_key:
+                st.error("Cannot fetch Groq models: API key missing.")
+                return []
+            # Groq uses OpenAI compatible endpoint for models
+            url = "https://api.groq.com/openai/v1/models"
+            headers = {"Authorization": f"Bearer {api_key}"}
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status() # Raise error for bad status codes
+            data = response.json()
+            models = sorted([model['id'] for model in data.get('data', []) if 'id' in model])
+
+        elif provider == "Ollama":
+            # Ollama uses /api/tags endpoint
+            url = f"{endpoint.strip('/')}/api/tags"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            # Basic filtering heuristic: exclude models likely intended for embeddings based on name/family
+            models = sorted([
+                model['name'] for model in data.get('models', [])
+                if 'embed' not in model.get('details', {}).get('family', '').lower()
+            ])
+
+        # Add other providers here
+        # elif provider == "OpenAI": ...
+
+        if not models:
+             st.warning(f"No models found for {provider} at {endpoint}.")
+        else:
+             st.success(f"Found {len(models)} models for {provider}.")
+
+        return models
+
+    except requests.exceptions.ConnectionError:
+        st.error(f"Connection Error: Could not reach endpoint {endpoint}. Is the service running?")
+        if provider == "Ollama": st.info("Ensure Ollama is running locally (`ollama serve`)")
+        return []
+    except requests.exceptions.Timeout:
+        st.error(f"Timeout: Request to {endpoint} timed out.")
+        return []
+    except requests.exceptions.HTTPError as e:
+        st.error(f"HTTP Error fetching models: {e.response.status_code} {e.response.reason}")
+        try:
+            st.error(f"Response body: {e.response.text}") # Show error details from API
+            if e.response.status_code == 401 and provider == "Groq":
+                 st.error("Authentication Error (401): Please check your Groq API Key.")
+        except Exception as inner_e:
+            # Avoid crashing if response.text is not available or causes another error
+            st.warning(f"Could not display full error response body: {inner_e}")
+        return [] # Return empty list on HTTP error
+    except Exception as e:
+        st.error(f"An unexpected error occurred fetching models: {e}")
+        st.error(traceback.format_exc())
+        return [] # Return empty list on other exceptions
+
+
+# --- Hierarchy Formatting for Prompt ---
+def format_hierarchy_for_prompt(hierarchy: Dict[str, Any]) -> str:
+    """ Formats the nested hierarchy dictionary into a string for LLM prompts."""
+    if not hierarchy or 'themes' not in hierarchy or not hierarchy['themes']:
+        return "No hierarchy defined."
+
+    prompt_string = "Available Categorization Structure:\n---\n"
+    try:
+        for theme in hierarchy.get('themes', []):
+            prompt_string += f"Theme: {theme.get('name', 'N/A')}\n"
+            for category in theme.get('categories', []):
+                prompt_string += f"  Category: {category.get('name', 'N/A')}\n"
+                for segment in category.get('segments', []):
+                    prompt_string += f"    Segment: {segment.get('name', 'N/A')}\n"
+                    for sub_segment in segment.get('subsegments', []): # Uses 'subsegments' key from Pydantic model
+                        keywords_str = ', '.join(sub_segment.get('keywords', [])) if sub_segment.get('keywords') else 'N/A'
+                        prompt_string += f"      Subsegment: {sub_segment.get('name', 'N/A')} (Keywords: {keywords_str})\n"
+                prompt_string += "\n" # Space between categories
+            prompt_string += "---\n" # Separator between themes
+    except Exception as e:
+        st.error(f"Error formatting hierarchy for prompt: {e}")
+        return "Error: Could not format hierarchy structure."
+    return prompt_string
+
+
+# --- LLM Hierarchy Suggestion ---
+def generate_hierarchy_suggestion(llm_client: Any, sample_texts: List[str]) -> Optional[Dict[str, Any]]:
+    """Uses the LLM to generate a hierarchy suggestion based on sample text."""
+    if not llm_client or not sample_texts:
+        st.error("LLM Suggestion: LLM client or sample texts missing.")
+        return None
+
+    st.info(f"LLM Suggestion: Analyzing {len(sample_texts)} samples...")
+    try:
+        # --- LangChain Prompt for Hierarchy Generation ---
+        generation_prompt_template = """
+        You are an expert data analyst creating structured hierarchies. Analyze the sample text data below to identify themes, categories, segments, and sub-segments.
+
+        **Sample Data:**
+        ```
+        {sample_data}
+        ```
+
+        **Instructions:**
+        1. Identify 2-5 main **Themes**.
+        2. For each Theme, identify relevant **Categories**.
+        3. For each Category, identify relevant **Segments**.
+        4. For each Segment, identify specific **Sub-Segments**.
+        5. For each **Sub-Segment**, list 3-7 relevant **Keywords** found in or directly inferred from the sample data.
+        6. Ensure the hierarchy is logical and covers the data's main topics. Avoid redundancy.
+        7. Base the hierarchy *only* on the provided data. Do not invent unrelated topics.
+        8. Output the result STRICTLY in the specified JSON format.
+
+        {format_instructions}
+        """
+
+        parser = PydanticOutputParser(pydantic_object=AISuggestionHierarchy)
+        prompt = PromptTemplate(
+            template=generation_prompt_template,
+            input_variables=["sample_data"],
+            partial_variables={"format_instructions": parser.get_format_instructions()}
+        )
+        chain = LLMChain(llm=llm_client, prompt=prompt)
+        sample_data_str = "\n".join([f"- {text}" for text in sample_texts])
+
+        # Invoke LLM
+        with st.spinner("🤖 LLM is thinking... Generating hierarchy..."):
+            llm_response = chain.invoke({"sample_data": sample_data_str})
+            raw_output = llm_response['text']
+
+        # Attempt to parse the output
+        st.info("LLM Suggestion: Parsing response...")
+        try:
+            parsed_hierarchy = parser.parse(raw_output)
+            st.success("✅ LLM response parsed successfully.")
+            return parsed_hierarchy.model_dump() # Return as a standard dictionary
+        except Exception as e_parse:
+            st.warning(f"LLM Suggestion: Initial Pydantic parse failed: {e_parse}. Attempting automated fix...")
+            try:
+                # Use LangChain's fixer which asks the LLM to correct the format
+                fixing_parser = OutputFixingParser.from_llm(parser=parser, llm=llm_client)
+                parsed_hierarchy = fixing_parser.parse(raw_output)
+                st.success("✅ Successfully parsed hierarchy using OutputFixingParser.")
+                return parsed_hierarchy.model_dump() # Return as a standard dictionary
+            except Exception as e_fix:
+                st.error(f"🔴 LLM Suggestion: OutputFixingParser also failed: {e_fix}")
+                st.error("Raw AI Response that failed parsing:")
+                st.code(raw_output, language='json')
+                return None # Return None if fixing fails
+
+    except Exception as e:
+        st.error(f"🔴 LLM Suggestion: Unexpected error during generation: {e}")
+        st.error(traceback.format_exc())
+        return None
+
+
+# --- LLM Text Classification (Batch Processing) ---
+def classify_texts_with_llm(
+    df: pd.DataFrame,
+    text_column: str,
+    hierarchy_dict: Dict[str, Any],
+    llm_client: Any,
+    batch_size: int = 10, # Number of texts to process in one LLM call
+    max_concurrency: int = 5 # Max parallel LLM requests allowed simultaneously
+    ) -> Optional[pd.DataFrame]:
+    """
+    Classifies text in a DataFrame using the LLM, a defined hierarchy, and batch processing.
+
+    Args:
+        df: Input DataFrame.
+        text_column: Name of the column containing text to classify.
+        hierarchy_dict: Nested dictionary defining the classification structure.
+        llm_client: Initialized LangChain LLM client.
+        batch_size: How many rows to send to the LLM in each batch request.
+        max_concurrency: Maximum number of concurrent requests to the LLM provider.
+
+    Returns:
+        A DataFrame with added columns for LLM classification results (Theme, Category, etc.)
+        or None if a critical error occurs.
+    """
+
+    if df is None or df.empty or not text_column or not hierarchy_dict or not llm_client:
+        st.error("LLM Classify: Missing inputs (DataFrame, text column, hierarchy, or LLM client).")
+        return None
+
+    # --- Setup LangChain for Categorization ---
+    categorization_prompt_template = """
+    You are an AI assistant specialized in precise text categorization. Classify the text snippet below into the *single most appropriate* path within the provided structure. Only use the Theme, Category, Segment, and Subsegment names explicitly defined in the structure. If no path fits well, you may return null for some or all levels. Provide brief reasoning.
+
+    **Hierarchy Structure:**
+    ```
+    {hierarchy_structure}
+    ```
+
+    **Text Snippet to Categorize:**
+    ```
+    {text_to_categorize}
+    ```
+
+    {format_instructions}
+    """
+
+    categorization_parser = PydanticOutputParser(pydantic_object=LLMCategorizationResult)
+    # Note: Using OutputFixingParser in batch mode can be slow if many items fail parsing.
+    # It's often better to handle parse errors individually after the batch returns.
+
+    categorization_prompt = PromptTemplate(
+        template=categorization_prompt_template,
+        input_variables=["hierarchy_structure", "text_to_categorize"],
+        partial_variables={"format_instructions": categorization_parser.get_format_instructions()}
+    )
+    categorization_chain = LLMChain(llm=llm_client, prompt=categorization_prompt)
+
+    # --- Prepare Data and Run ---
+    df_to_process = df.copy()
+    hierarchy_str = format_hierarchy_for_prompt(hierarchy_dict)
+    if "Error:" in hierarchy_str or "No hierarchy defined" in hierarchy_str:
+        st.error(f"LLM Classify: Invalid hierarchy structure provided for prompt: {hierarchy_str}")
+        return None
+
+    # Define mapping from Pydantic fields to DataFrame column names
+    output_cols = {
+         'theme': 'LLM_Theme',
+         'category': 'LLM_Category',
+         'segment': 'LLM_Segment',
+         'subsegment': 'LLM_Subsegment', # Matches Pydantic field name
+         'reasoning': 'LLM_Reasoning'
+     }
+    # Add output columns to the DataFrame if they don't exist, handling potential conflicts
+    for df_col in output_cols.values():
+        if df_col not in df_to_process.columns:
+            df_to_process[df_col] = pd.NA # Use pandas NA for better type handling
+        else:
+            st.warning(f"Column '{df_col}' already exists. Output will overwrite it.")
+
+    total_rows = len(df_to_process)
+    st.info(f"LLM Classify: Starting batch categorization for {total_rows} rows (Batch Size: {batch_size}, Concurrency: {max_concurrency})...")
+    progress_bar = st.progress(0, text="Initializing LLM Batch Categorization...")
+    all_results_parsed = []
+    error_count = 0
+    processed_rows = 0
+
+    # Prepare list of texts to process
+    texts_to_classify_list = df_to_process[text_column].fillna("").astype(str).tolist()
+    original_indices = df_to_process.index.tolist() # Keep track of original indices
+
+    with st.spinner(f"🤖 LLM is categorizing in batches..."):
+        for i in range(0, total_rows, batch_size):
+            batch_texts = texts_to_classify_list[i : i + batch_size]
+            batch_indices = original_indices[i : i + batch_size]
+
+            if not batch_texts: continue # Skip empty batches
+
+            # Create inputs for the batch call
+            batch_inputs = [
+                {
+                    "hierarchy_structure": hierarchy_str,
+                    "text_to_categorize": text
+                }
+                for text in batch_texts if text.strip() # Only include non-empty texts
+            ]
+            # Keep track of indices corresponding to non-empty texts in the batch
+            valid_indices_in_batch = [idx for idx, text in zip(batch_indices, batch_texts) if text.strip()]
+
+            if not batch_inputs: # If batch only contained empty texts
+                 # Add empty results for all original indices in this batch
+                 all_results_parsed.extend([{'index': idx, **LLMCategorizationResult().model_dump()} for idx in batch_indices])
+                 processed_rows += len(batch_indices)
+                 current_progress = processed_rows / total_rows
+                 progress_bar.progress(current_progress, text=f"Processed {processed_rows}/{total_rows} rows (Skipped empty batch)")
+                 continue
+
+            try:
+                # --- Execute Batch Request ---
+                batch_responses = categorization_chain.batch(
+                    batch_inputs,
+                    config={"max_concurrency": max_concurrency}
+                )
+                # batch_responses is a list of dictionaries, e.g., [{'text': '...'}, {'text': '...'}]
+
+                # --- Process Batch Responses ---
+                if len(batch_responses) != len(batch_inputs):
+                     st.error(f"Batch Error: Mismatch between input ({len(batch_inputs)}) and output ({len(batch_responses)}) count.")
+                     # Add error results for this batch
+                     all_results_parsed.extend([{'index': idx, **LLMCategorizationResult(reasoning="Error: Batch response mismatch").model_dump()} for idx in valid_indices_in_batch])
+                     error_count += len(valid_indices_in_batch)
+                else:
+                    for idx, response in zip(valid_indices_in_batch, batch_responses):
+                        raw_output = response.get('text', '')
+                        try:
+                            parsed_result = categorization_parser.parse(raw_output)
+                            all_results_parsed.append({'index': idx, **parsed_result.model_dump()})
+                        except Exception as e_parse:
+                            st.warning(f"LLM Parse Error (Index {idx}): {e_parse}. Raw: '{raw_output[:100]}...'")
+                            # Attempting to fix might be slow/unreliable in batch, log as error
+                            all_results_parsed.append({'index': idx, **LLMCategorizationResult(reasoning=f"Error: Failed to parse LLM output - {e_parse}").model_dump()})
+                            error_count += 1
+
+                # Add empty results for any empty texts that were skipped *within* this batch run
+                empty_indices_in_batch = [idx for idx, text in zip(batch_indices, batch_texts) if not text.strip()]
+                all_results_parsed.extend([{'index': idx, **LLMCategorizationResult().model_dump()} for idx in empty_indices_in_batch])
+
+
+            except Exception as e_batch:
+                st.error(f"LLM Batch Error (Rows {i+1}-{i+batch_size}): {e_batch}")
+                st.error(traceback.format_exc())
+                # Add error results for all valid items in the failed batch
+                all_results_parsed.extend([{'index': idx, **LLMCategorizationResult(reasoning=f"Error: Batch processing failed - {e_batch}").model_dump()} for idx in valid_indices_in_batch])
+                # Add empty results for skipped empty texts
+                empty_indices_in_batch = [idx for idx, text in zip(batch_indices, batch_texts) if not text.strip()]
+                all_results_parsed.extend([{'index': idx, **LLMCategorizationResult().model_dump()} for idx in empty_indices_in_batch])
+                error_count += len(valid_indices_in_batch)
+
+
+            # Update progress
+            processed_rows += len(batch_indices) # Increment by the original batch size
+            current_progress = processed_rows / total_rows
+            progress_bar.progress(current_progress, text=f"Processed {processed_rows}/{total_rows} rows")
+
+    progress_bar.progress(1.0, text="Assigning results...")
+
+    # --- Consolidate Results ---
+    if len(all_results_parsed) == total_rows:
+        # Create DataFrame from parsed results, ensuring index matches original
+        results_df_final = pd.DataFrame(all_results_parsed).set_index('index')
+        # Assign results back to the original DataFrame columns using the index
+        for pydantic_field, df_col in output_cols.items():
+            if pydantic_field in results_df_final.columns:
+                 # Use .loc for robust index-based assignment
+                 df_to_process.loc[results_df_final.index, df_col] = results_df_final[pydantic_field]
+            else:
+                 st.warning(f"LLM Classify: Field '{pydantic_field}' missing in LLM results for column '{df_col}'.")
+    else:
+        # Correctly indented error message and return
+        st.error(f"LLM Classify Error: Number of processed results ({len(all_results_parsed)}) does not match total rows ({total_rows}). Cannot assign results reliably.")
+        return None # Return None if result count mismatch
+
+    # Correctly indented final block
+    progress_bar.empty()
+    st.success(f"✅ LLM Batch Categorization finished! ({error_count} row errors occurred during processing)")
+    return df_to_process # Return the processed DataFrame
+
+
+
+================================================
+FILE: requirements.txt
+================================================
+streamlit
+pandas
+langchain
+langchain-groq
+python-dotenv
+openpyxl
+langchain-community
+pandas
+streamlit
+transformers[torch]
+scikit-learn
+plotly
+accelerate
+pydantic
+XlsxWriter
+
+
+================================================
+FILE: ui_components.py
+================================================
+import streamlit as st
+import pandas as pd
+import os
+import config
+import llm_classifier
+from utils import build_hierarchy_from_df, restart_session, flatten_hierarchy
+from typing import Dict, Any
+import traceback
+
+
+def display_llm_sidebar():
+    """Displays the sidebar for LLM provider and model configuration."""
+    st.sidebar.header("🤖 LLM Configuration")
+
+    # --- Provider Selection ---
+    current_provider_index = config.SUPPORTED_PROVIDERS.index(st.session_state.llm_provider) if st.session_state.llm_provider in config.SUPPORTED_PROVIDERS else 0
+    provider = st.sidebar.selectbox(
+        "Select AI Provider:",
+        options=config.SUPPORTED_PROVIDERS,
+        index=current_provider_index,
+        key="llm_provider_select",
+        help="Choose the LLM service provider."
+    )
+    # If the provider selection changes, reset related state variables
+    if provider != st.session_state.llm_provider:
+        st.session_state.llm_provider = provider
+        st.session_state.llm_models = []
+        st.session_state.llm_selected_model_name = None
+        st.session_state.llm_client = None
+        # Set the default endpoint for the newly selected provider
+        if provider == "Groq":
+            st.session_state.llm_endpoint = config.DEFAULT_GROQ_ENDPOINT
+        elif provider == "Ollama":
+            st.session_state.llm_endpoint = config.DEFAULT_OLLAMA_ENDPOINT
+        else:
+            st.session_state.llm_endpoint = "" # Handle other potential providers
+        st.rerun() # Rerun the app to apply changes
+
+    # --- API Endpoint Input ---
+    # Determine the default endpoint based on the selected provider
+    default_endpoint = config.DEFAULT_GROQ_ENDPOINT if provider == "Groq" else config.DEFAULT_OLLAMA_ENDPOINT
+    # Initialize endpoint in session state if it's missing or empty for the current provider
+    if 'llm_endpoint' not in st.session_state or not st.session_state.llm_endpoint:
+         st.session_state.llm_endpoint = default_endpoint
+
+    # Display the endpoint input field
+    endpoint = st.sidebar.text_input(
+        "API Endpoint:",
+        value=st.session_state.llm_endpoint,
+        key="llm_endpoint_input",
+        help="The base URL for the LLM API. Modify for custom Ollama URLs or other endpoints."
+    )
+    # If the endpoint changes, reset models and client, then rerun
+    if endpoint != st.session_state.llm_endpoint:
+         st.session_state.llm_endpoint = endpoint
+         st.session_state.llm_models = []
+         st.session_state.llm_selected_model_name = None
+         st.session_state.llm_client = None
+         st.rerun()
+
+    # --- API Key Input (Conditional) ---
+    # Determine if the selected provider requires an API key
+    api_key_needed = provider == "Groq" # Extend this logic for other providers like OpenAI
+    api_key_present = False # Flag to track if a key is available for use
+
+    if api_key_needed:
+        # Attempt to load the API key from environment variables or Streamlit secrets first
+        env_api_key = os.getenv(f"{provider.upper()}_API_KEY") or st.secrets.get(f"{provider.upper()}_API_KEY")
+
+        # Use the key from env/secrets unless the user has manually entered one in the session
+        if env_api_key and not st.session_state.get("llm_api_key_user_override"):
+            st.session_state.llm_api_key = env_api_key
+            st.sidebar.success(f"{provider} API Key loaded from environment/secrets.", icon="🔒")
+            api_key_present = True
+        else:
+            # If no key from env/secrets or user override is active, show the input field
+            user_api_key = st.sidebar.text_input(
+                f"{provider} API Key:",
+                value=st.session_state.get("llm_api_key", ""),
+                type="password",
+                key="llm_api_key_input",
+                help=f"Required for {provider}. Paste your API key here.",
+                placeholder=f"Enter your {provider} API key"
+            )
+            # Update session state based on user input
+            if user_api_key:
+                st.session_state.llm_api_key = user_api_key
+                st.session_state.llm_api_key_user_override = True # Mark that user provided the key
+                api_key_present = True
+            else:
+                # If user clears the input, reset the state
+                st.session_state.llm_api_key = ""
+                st.session_state.llm_api_key_user_override = False
+                st.sidebar.warning(f"{provider} API Key is required.")
+                # Provide helpful links for common providers
+                if provider == "Groq": st.sidebar.markdown("[Get Groq API Key](https://console.groq.com/keys)")
+                # Add links for other providers if needed
+
+    else:
+        # If the provider doesn't need an API key (e.g., default Ollama)
+        st.session_state.llm_api_key = ""
+        api_key_present = True # Consider the key requirement met
+
+    # --- Fetch Available Models ---
+    # Determine if models need to be fetched:
+    # 1. If the model list is currently empty.
+    # 2. (Implicitly handled by resets above) If provider, endpoint, or key changes.
+    should_fetch = not st.session_state.llm_models
+
+    # Prevent fetching if a required API key is missing
+    if api_key_needed and not api_key_present:
+        should_fetch = False
+        if st.session_state.llm_models: # Clear any potentially stale models
+            st.session_state.llm_models = []
+
+    # Fetch models if conditions are met
+    if should_fetch and st.session_state.llm_endpoint:
+        with st.spinner(f"Fetching models for {provider}..."):
+            models = llm_classifier.fetch_available_models(
+                provider,
+                st.session_state.llm_endpoint,
+                st.session_state.llm_api_key if api_key_needed else None
+            )
+        if models:
+            st.session_state.llm_models = models
+            # Attempt to set a default model if none is currently selected
+            if not st.session_state.get('llm_selected_model_name'):
+                default_model = config.DEFAULT_GROQ_MODEL if provider == "Groq" else config.DEFAULT_OLLAMA_MODEL
+                if default_model in models:
+                    st.session_state.llm_selected_model_name = default_model
+                elif models: # If default isn't available, use the first model in the list
+                    st.session_state.llm_selected_model_name = models[0]
+        else:
+            st.sidebar.error(f"Could not fetch models for {provider}.")
+            if provider == "Ollama": st.sidebar.markdown("[Download Ollama](https://ollama.com/)")
+        # Avoid st.rerun() here; let the model selection dropdown update naturally
+
+    # --- Model Selection Dropdown ---
+    st.sidebar.divider()
+    st.sidebar.markdown("**Model Selection**")
+
+    current_model_name = st.session_state.get('llm_selected_model_name')
+    current_model_index = 0
+    if current_model_name and st.session_state.llm_models and current_model_name in st.session_state.llm_models:
+        current_model_index = st.session_state.llm_models.index(current_model_name)
+
+    # Determine the index for the currently selected model, default to 0 if not found
+    current_model_index = 0
+    if current_model_name and st.session_state.llm_models and current_model_name in st.session_state.llm_models:
+        current_model_index = st.session_state.llm_models.index(current_model_name)
+
+    # Layout for model selection and refresh button
+    col_select, col_refresh = st.sidebar.columns([4, 1])
+
+    with col_select:
+        if st.session_state.llm_models:
+            selected_model_name = st.selectbox(
+                "Select AI Model:",
+                options=st.session_state.llm_models,
+                index=current_model_index,
+                key="llm_model_select",
+                help="Choose the specific model to use for classification and suggestions."
+            )
+            # If the selected model changes, update state and reset the client
+            if selected_model_name != st.session_state.get('llm_selected_model_name'):
+                 st.session_state.llm_selected_model_name = selected_model_name
+                 st.session_state.llm_client = None
+                 st.rerun()
+        else:
+            st.warning("No models available. Check endpoint/key and refresh.")
+            selected_model_name = None
+
+    # Refresh button column
+    with col_refresh:
+        # Add some top margin to align button better with selectbox
+        st.markdown("<div style='margin-top: 1.8em;'></div>", unsafe_allow_html=True)
+        if st.button("🔄", help="Refresh available models list", key="refresh_models_button"):
+            # Only refresh if endpoint is set and key is present (if needed)
+            if st.session_state.llm_endpoint and (api_key_present if api_key_needed else True):
+                 with st.spinner("Fetching models..."):
+                     models = llm_classifier.fetch_available_models(
+                         st.session_state.llm_provider,
+                         st.session_state.llm_endpoint,
+                         st.session_state.llm_api_key if api_key_needed else None
+                     )
+                 if models:
+                     st.session_state.llm_models = models
+                     st.sidebar.success("Models updated!", icon="✅")
+                 else:
+                     st.sidebar.error("Failed to fetch models.", icon="❗")
+                     st.session_state.llm_models = [] # Clear list on failure
+                 st.rerun() # Rerun to update the dropdown with new models
+            else:
+                st.sidebar.warning("Cannot refresh: Check endpoint and API key (if required).", icon="⚠️")
+
+    # --- Initialize LLM Client ---
+    client_ready = False
+    # Check if all necessary components are available to initialize the client
+    can_initialize = (
+        st.session_state.llm_selected_model_name and
+        st.session_state.llm_endpoint and
+        (api_key_present if api_key_needed else True)
+    )
+
+    if can_initialize:
+         # Initialize only if the client doesn't exist yet (cached) or relevant config changed (handled by resets)
+         if st.session_state.llm_client is None:
+             with st.spinner("Initializing LLM client..."):
+                 st.session_state.llm_client = llm_classifier.initialize_llm_client(
+                     st.session_state.llm_provider,
+                     st.session_state.llm_endpoint,
+                     st.session_state.llm_api_key if api_key_needed else None,
+                     st.session_state.llm_selected_model_name
+                 )
+         # Check if client initialization was successful
+         if st.session_state.llm_client:
+             client_ready = True
+
+    # --- Display Status and End Session Button ---
+    st.sidebar.divider()
+    if client_ready:
+        st.sidebar.info(f"Provider: {st.session_state.llm_provider}\n\nModel: {st.session_state.llm_selected_model_name}\n\nStatus: Ready ✅")
+    elif st.session_state.llm_selected_model_name:
+         # If a model is selected but client isn't ready, there's a config issue
+         st.sidebar.error("LLM Client not ready. Check endpoint and API key (if required).")
+    else:
+         # If no model is selected yet
+         st.sidebar.warning("Select a model to initialize the LLM client.")
+
+    # Button to clear session state and restart the app flow
+    if st.sidebar.button("End Session & Clear State", key="end_session_sidebar_button"):
+        restart_session()
+
+# --- Hierarchy Editor Component ---
+def display_hierarchy_editor(key_prefix="main"):
+    """
+    Displays the Streamlit data editor for the hierarchy and handles AI suggestion logic.
+
+    Args:
+        key_prefix (str): A prefix for widget keys to avoid collisions if used multiple times.
+
+    Returns:
+        bool: True if the hierarchy is considered defined and valid, False otherwise.
+    """
+    st.markdown("Define the Theme -> Category -> Segment -> Subsegment structure. Keywords should be comma-separated.")
+
+    # --- Handle Pending AI Suggestion ---
+    # Check if an AI suggestion was generated and is waiting for user action
+    if st.session_state.get('ai_suggestion_pending'):
+        st.info("🤖 An AI-generated hierarchy suggestion is ready!")
+        nested_suggestion = st.session_state.ai_suggestion_pending
+        # Convert the nested suggestion (dict) into a flat DataFrame for preview
+        df_suggestion = flatten_hierarchy(nested_suggestion)
+
+        st.markdown("**Preview of AI Suggestion:**")
+        st.dataframe(df_suggestion, use_container_width=True, height=200)
+
+        # Buttons to apply or discard the suggestion
+        col_apply, col_discard = st.columns(2)
+        with col_apply:
+            if st.button("✅ Apply Suggestion (Replaces Editor)", key=f"{key_prefix}_apply_ai", type="primary"):
+                st.session_state.hierarchy_df = df_suggestion # Overwrite the editor's content
+                st.session_state.ai_suggestion_pending = None # Clear the pending flag
+                st.session_state.hierarchy_defined = True # Assume applied suggestion is valid initially
+                st.success("Editor updated with AI suggestion.")
+                st.rerun() # Rerun to show the updated editor
+        with col_discard:
+             if st.button("❌ Discard Suggestion", key=f"{key_prefix}_discard_ai"):
+                 st.session_state.ai_suggestion_pending = None # Clear the pending flag
+                 st.rerun() # Rerun to remove the suggestion display
+        st.divider()
+
+    # --- Display Data Editor ---
+    st.markdown("**Hierarchy Editor:**")
+    # Initialize the hierarchy DataFrame in session state if it doesn't exist
+    if 'hierarchy_df' not in st.session_state or st.session_state.hierarchy_df is None:
+         st.session_state.hierarchy_df = pd.DataFrame(columns=['Theme', 'Category', 'Segment', 'Subsegment', 'Keywords'])
+
+    # Display the data editor widget
+    edited_df = st.data_editor(
+        st.session_state.hierarchy_df,
+        num_rows="dynamic", # Allow adding/deleting rows
+        use_container_width=True,
+        key=f"{key_prefix}_hierarchy_editor_widget",
+        hide_index=True,
+        # Configure columns, making key levels required
+        column_config={
+             "Theme": st.column_config.TextColumn(required=True),
+             "Category": st.column_config.TextColumn(required=True),
+             "Segment": st.column_config.TextColumn(required=True),
+             "Subsegment": st.column_config.TextColumn("Subsegment", required=True), # Standardized name
+             "Keywords": st.column_config.TextColumn("Keywords (comma-sep)"),
+         }
+    )
+
+    # --- Update Session State and Validate on Edit ---
+    # Compare the edited DataFrame with the one currently in session state
+    # Use copies and string conversion for robust comparison
+    current_df_copy = st.session_state.hierarchy_df.copy()
+    edited_df_copy = edited_df.copy()
+
+    if not current_df_copy.astype(str).equals(edited_df_copy.astype(str)):
+        st.session_state.hierarchy_df = edited_df_copy # Update session state
+
+        # Immediately validate the newly edited structure
+        temp_nested = build_hierarchy_from_df(st.session_state.hierarchy_df)
+        # A valid structure should have a 'themes' list, even if empty initially
+        is_valid = bool(temp_nested and 'themes' in temp_nested)
+
+        if is_valid and temp_nested.get('themes'):
+            st.session_state.hierarchy_defined = True
+            st.success("Hierarchy changes saved and structure appears valid.")
+        elif is_valid: # Structure exists but no themes yet
+             st.session_state.hierarchy_defined = False
+             st.info("Hierarchy changes saved. Add at least one full path (Theme to Subsegment).")
+        else: # build_hierarchy_from_df returned None or invalid dict
+            st.session_state.hierarchy_defined = False
+            st.warning("Hierarchy structure seems invalid after edits. Check for missing levels.")
+        st.rerun() # Rerun to reflect the saved state and validation message
+
+    # --- Show Preview of Nested Structure ---
+    st.markdown("**Preview of Current Nested Structure (for validation):**")
+    # Rebuild the nested structure from the current DataFrame in state
+    current_nested_hierarchy = build_hierarchy_from_df(st.session_state.hierarchy_df)
+
+    if current_nested_hierarchy and current_nested_hierarchy.get('themes'):
+        # If themes exist, display the JSON preview and mark as defined
+        st.json(current_nested_hierarchy, expanded=False)
+        st.session_state.hierarchy_defined = True
+    else:
+        # If no themes or invalid structure, show warning
+        st.warning("The hierarchy structure is currently empty or invalid. Use the editor above to define at least one complete path.")
+        st.session_state.hierarchy_defined = False
+
+    # Return the current validation status
+    return st.session_state.hierarchy_defined
+
+
+
+================================================
+FILE: utils.py
+================================================
+# utils.py
+"""General utility functions."""
+
+import streamlit as st
+import pandas as pd
+from io import BytesIO
+import traceback
+import config
+from typing import List, Dict, Any, Tuple, Optional
+from collections import defaultdict
+
+# --- Session State Management ---
+def init_session_state():
+    """Initializes Streamlit session state variables."""
+    # Workflow selection
+    if 'selected_workflow' not in st.session_state:
+        st.session_state.selected_workflow = "LLM Categorization" # Default workflow
+
+    # --- DataFrames ---
+    if 'categorized_df' not in st.session_state:
+        st.session_state.categorized_df = None # Training data for HF
+    if 'uncategorized_df' not in st.session_state:
+        st.session_state.uncategorized_df = None # Data to predict on
+    if 'results_df' not in st.session_state:
+        st.session_state.results_df = None # Stores final classification output
+
+    # --- Column Selections ---
+    if 'cat_text_col' not in st.session_state:
+        st.session_state.cat_text_col = None # Text col for HF training
+    for level in config.HIERARCHY_LEVELS: # HF hierarchy cols
+        if f'cat_{level.lower()}_col' not in st.session_state:
+            st.session_state[f'cat_{level.lower()}_col'] = None
+    if 'uncat_text_col' not in st.session_state:
+        st.session_state.uncat_text_col = None # Text col for prediction (both workflows)
+
+    # --- Hugging Face Model State ---
+    if 'hf_model' not in st.session_state:
+        st.session_state.hf_model = None
+    if 'hf_tokenizer' not in st.session_state:
+        st.session_state.hf_tokenizer = None
+    if 'hf_label_map' not in st.session_state:
+        st.session_state.hf_label_map = None
+    if 'hf_rules' not in st.session_state:
+        st.session_state.hf_rules = pd.DataFrame(columns=['Label', 'Keywords', 'Confidence Threshold'])
+    if 'hf_model_ready' not in st.session_state:
+        st.session_state.hf_model_ready = False # Unified flag: True if HF trained or loaded
+
+    # --- LLM State ---
+    if 'llm_client' not in st.session_state:
+        st.session_state.llm_client = None # The initialized LangChain client
+    if 'llm_provider' not in st.session_state:
+        st.session_state.llm_provider = config.SUPPORTED_PROVIDERS[0] # Default to first provider
+    if 'llm_endpoint' not in st.session_state:
+        st.session_state.llm_endpoint = "" # Will be set based on provider
+    if 'llm_api_key' not in st.session_state:
+        st.session_state.llm_api_key = "" # Store API key temporarily
+    if 'llm_models' not in st.session_state:
+        st.session_state.llm_models = [] # List of available models for selected provider
+    if 'llm_selected_model_name' not in st.session_state:
+        st.session_state.llm_selected_model_name = None
+
+    # --- Hierarchy State (Used by both, but defined/edited primarily for LLM) ---
+    if 'hierarchy_df' not in st.session_state:
+        st.session_state.hierarchy_df = pd.DataFrame(columns=['Theme', 'Category', 'Segment', 'Subsegment', 'Keywords'])
+    if 'hierarchy_defined' not in st.session_state:
+        st.session_state.hierarchy_defined = False # Is the hierarchy valid?
+    if 'ai_suggestion_pending' not in st.session_state: # For AI suggested hierarchy
+        st.session_state.ai_suggestion_pending = None
+
+    # --- App State ---
+    if 'app_stage' not in st.session_state:
+        st.session_state.app_stage = 'init' # Stages: init, file_uploaded, column_selected, hf_model_ready, hierarchy_defined, categorized
+    if 'raw_predicted_labels' not in st.session_state: # Used by HF stats
+        st.session_state.raw_predicted_labels = None
+
+    # File upload keys
+    if 'categorized_file_key' not in st.session_state:
+        st.session_state.categorized_file_key = None
+    if 'uncategorized_file_key' not in st.session_state:
+        st.session_state.uncategorized_file_key = None
+
+
+def restart_session():
+    """Clears relevant parts of the session state to simulate a restart."""
+    st.info("Ending session and clearing state...")
+    # Define keys to remove from session state for a clean restart
+    keys_to_clear = [
+        'categorized_df', 'uncategorized_df', 'results_df',
+        'cat_text_col', 'uncat_text_col',
+        'hf_model', 'hf_tokenizer', 'hf_label_map', 'hf_rules', 'hf_model_ready',
+        'llm_client', 'llm_models', 'llm_selected_model_name', # Keep provider/endpoint/key? Cleared for now.
+        'hierarchy_df', 'hierarchy_defined', 'ai_suggestion_pending',
+        'app_stage', 'raw_predicted_labels',
+        'categorized_file_key', 'uncategorized_file_key'
+    ]
+    # Clear hierarchy level columns
+    for level in config.HIERARCHY_LEVELS:
+        keys_to_clear.append(f'cat_{level.lower()}_col')
+
+    # Add session_initialized to keys to clear so it re-runs init on restart
+    keys_to_clear.append('session_initialized')
+
+    for key in keys_to_clear:
+        if key in st.session_state:
+            try:
+                del st.session_state[key]
+            except Exception as e:
+                 st.warning(f"Could not clear session state key '{key}': {e}")
+
+
+    # No need to call init_session_state() here, it will be called at the top of app.py on rerun
+    st.rerun()
+
+# --- Data Handling ---
+@st.cache_data # Cache data loading to avoid reloading on every interaction
+def load_data(uploaded_file):
+    """Loads data from CSV or Excel, handles common errors."""
+    if uploaded_file is None:
+        return None
+    try:
+        file_name = uploaded_file.name
+        st.info(f"Loading '{file_name}'...")
+        if file_name.endswith('.csv'):
+            try:
+                # Try UTF-8 first, then latin1
+                df = pd.read_csv(uploaded_file, encoding='utf-8')
+            except UnicodeDecodeError:
+                st.warning("UTF-8 decoding failed, trying latin1...")
+                uploaded_file.seek(0)
+                df = pd.read_csv(uploaded_file, encoding='latin1')
+            except Exception as e_csv:
+                 st.error(f"Error reading CSV file: {e_csv}")
+                 return None
+        elif file_name.endswith(('.xls', '.xlsx')):
+            df = pd.read_excel(uploaded_file, engine='openpyxl') # Specify engine
+        else:
+            st.error("Unsupported file format. Please upload CSV or Excel.")
+            return None
+
+        # Basic cleaning: drop fully empty columns/rows
+        df = df.dropna(axis=1, how='all').dropna(axis=0, how='all')
+        st.success(f"✅ Loaded '{file_name}' ({df.shape[0]} rows, {df.shape[1]} columns)")
+        return df
+    except Exception as e:
+        st.error(f"Error loading file '{uploaded_file.name}': {e}")
+        st.error(traceback.format_exc())
+        return None
+
+@st.cache_data # Cache conversion
+def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
+    """Converts DataFrame to Excel bytes using xlsxwriter."""
+    output = BytesIO()
+    try:
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='ClassificationResults')
+        return output.getvalue()
+    except ImportError:
+        st.info("`xlsxwriter` not found, falling back to `openpyxl`. Install with `pip install XlsxWriter`.")
+        try:
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='ClassificationResults')
+            return output.getvalue()
+        except Exception as e_openpyxl:
+            st.error(f"Error generating Excel file with openpyxl: {e_openpyxl}")
+            return b""
+    except Exception as e_xlsx:
+        st.error(f"Error generating Excel file with xlsxwriter: {e_xlsx}")
+        return b""
+
+# --- Hierarchy Manipulation ---
+def build_hierarchy_from_df(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Converts a flat hierarchy DataFrame (e.g., from a Streamlit data editor)
+    back into a nested dictionary structure suitable for LLM processing.
+
+    Handles potential column name inconsistencies for 'Subsegment' (accepts 'Sub-Segment').
+
+    Args:
+        df: Pandas DataFrame with columns like 'Theme', 'Category', 'Segment',
+            'Subsegment' (or 'Sub-Segment'), and 'Keywords'.
+
+    Returns:
+        A nested dictionary representing the hierarchy (e.g., {'themes': [...]}).
+        Returns {'themes': []} if the input DataFrame is empty or None.
+    """
+    if df is None or df.empty:
+        return {'themes': []}
+
+    hierarchy = {'themes': []}
+    # Use 'subsegments' key to match Pydantic model
+    themes_dict = defaultdict(lambda: {'name': '', 'categories': defaultdict(lambda: {'name': '', 'segments': defaultdict(lambda: {'name': '', 'subsegments': []})})})
+
+    required_base_cols = ['Theme', 'Category', 'Segment']
+    # Standardize to 'Subsegment' for DataFrame column name
+    subsegment_key = "Subsegment"
+    subsegment_display_key = "Sub-Segment" # Still check for this legacy name during input
+    keywords_key = "Keywords"
+
+    df_processed = df.copy()
+
+    actual_subsegment_col = None
+    if subsegment_key in df_processed.columns: actual_subsegment_col = subsegment_key
+    elif subsegment_display_key in df_processed.columns: actual_subsegment_col = subsegment_display_key
+    else: st.error(f"Build Hierarchy Error: Neither '{subsegment_key}' nor '{subsegment_display_key}' found."); return {'themes': []}
+
+    all_expected_cols = required_base_cols + [actual_subsegment_col, keywords_key]
+
+    for col in all_expected_cols:
+        if col not in df_processed.columns:
+            st.warning(f"Build Hierarchy Warning: Column '{col}' missing. Creating empty."); df_processed[col] = ''
+    df_processed = df_processed[all_expected_cols].astype(str).fillna('')
+
+    processed_rows, skipped_rows = 0, 0
+    for _, row in df_processed.iterrows():
+        theme_name = row['Theme'].strip()
+        cat_name = row['Category'].strip()
+        seg_name = row['Segment'].strip()
+        sub_seg_name = row[actual_subsegment_col].strip()
+
+        if not all([theme_name, cat_name, seg_name, sub_seg_name]): skipped_rows += 1; continue
+
+        keywords = [k.strip() for k in row.get(keywords_key, '').split(',') if k.strip()]
+
+        themes_dict[theme_name]['name'] = theme_name
+        categories_dict = themes_dict[theme_name]['categories']
+        categories_dict[cat_name]['name'] = cat_name
+        segments_dict = categories_dict[cat_name]['segments']
+        segments_dict[seg_name]['name'] = seg_name
+
+        # Use 'subsegments' key here
+        subsegments_list = segments_dict[seg_name]['subsegments']
+        if not any(ss['name'] == sub_seg_name for ss in subsegments_list):
+             subsegments_list.append({'name': sub_seg_name, 'keywords': keywords})
+        processed_rows += 1
+
+    if skipped_rows > 0: st.info(f"Build Hierarchy: Skipped {skipped_rows} rows due to missing path names.")
+
+    final_themes = []
+    for theme_name, theme_data in themes_dict.items():
+        final_categories = []
+        for cat_name, cat_data in theme_data['categories'].items():
+            final_segments = []
+            for seg_name, seg_data in cat_data['segments'].items():
+                 # Check and use 'subsegments' key
+                 if seg_data['subsegments']: final_segments.append({'name': seg_data['name'], 'subsegments': seg_data['subsegments']})
+            if final_segments: final_categories.append({'name': cat_data['name'], 'segments': final_segments})
+        if final_categories: final_themes.append({'name': theme_data['name'], 'categories': final_categories})
+
+    final_hierarchy = {'themes': final_themes}
+    if not final_themes and processed_rows > 0: st.warning("Build Hierarchy: Processed rows, but result is empty.")
+    return final_hierarchy
+
+
+def flatten_hierarchy(nested_hierarchy: Dict[str, Any]) -> pd.DataFrame:
+    """Converts AI-generated nested hierarchy dict to a flat DataFrame for the editor."""
+    rows = []
+    # Standardize required column name to 'Subsegment'
+    required_cols = ['Theme', 'Category', 'Segment', 'Subsegment', 'Keywords']
+
+    if not nested_hierarchy or 'themes' not in nested_hierarchy:
+        return pd.DataFrame(columns=required_cols)
+
+    try:
+        for theme in nested_hierarchy.get('themes', []):
+            theme_name = theme.get('name', '').strip()
+            if not theme_name: continue
+
+            for category in theme.get('categories', []):
+                cat_name = category.get('name', '').strip()
+                if not cat_name: continue
+
+                for segment in category.get('segments', []):
+                    seg_name = segment.get('name', '').strip()
+                    if not seg_name: continue
+
+                    # Expect 'subsegments' key from Pydantic model
+                    if not segment.get('subsegments'): continue # Skip segments without subsegments
+                    else:
+                        for sub_segment in segment.get('subsegments', []):
+                            sub_seg_name = sub_segment.get('name', '').strip()
+                            if not sub_seg_name: continue
+
+                            keywords_list = [str(k).strip() for k in sub_segment.get('keywords', []) if str(k).strip()]
+                            keywords_str = ', '.join(keywords_list)
+
+                            rows.append({
+                                'Theme': theme_name,
+                                'Category': cat_name,
+                                'Segment': seg_name,
+                                # Use 'Subsegment' for DataFrame column name
+                                'Subsegment': sub_seg_name,
+                                'Keywords': keywords_str
+                            })
+    except Exception as e:
+        st.error(f"Error during hierarchy flattening: {e}")
+        st.error(traceback.format_exc())
+        return pd.DataFrame(columns=required_cols)
+
+    return pd.DataFrame(rows, columns=required_cols)
+
+
+# --- Hierarchy Parsing ---
+def parse_predicted_labels_to_columns(predicted_labels_list: List[List[str]]) -> List[Dict[str, Optional[str]]]:
+    """
+    Parses lists of predicted labels, potentially prefixed (e.g., 'Theme: X', 'Category: Y'),
+    into structured dictionaries, one per original input row.
+
+    It uses the hierarchy levels defined in `config.HIERARCHY_LEVELS` to identify
+    and extract the correct label for each level. If multiple labels for the same
+    level are found in a single prediction list, only the first one is used.
+
+    Args:
+        predicted_labels_list: A list where each element is a list of string labels
+                               predicted for a single input text.
+
+    Returns:
+        A list of dictionaries. Each dictionary corresponds to an input text and
+        has keys matching the hierarchy levels (e.g., 'Theme', 'Category'),
+        with the extracted label as the value, or None if no label for that level
+        was found.
+    """
+    structured_results = []
+    # Create lowercase prefixes like "theme:", "category:" for matching
+    prefixes = {level: f"{level.lower()}:" for level in config.HIERARCHY_LEVELS}
+
+    for labels in predicted_labels_list:
+        # Initialize dict with None for all expected hierarchy levels
+        row_dict: Dict[str, Optional[str]] = {level: None for level in config.HIERARCHY_LEVELS}
+        if not labels:
+            structured_results.append(row_dict)
+            continue
+
+        found_labels = {key: [] for key in config.HIERARCHY_LEVELS}
+
+        for label in labels:
+            if not isinstance(label, str): continue # Skip non-string labels
+            label_lower = label.lower()
+            label_processed = False
+            # Check against prefixes in defined hierarchy order
+            for level in config.HIERARCHY_LEVELS:
+                prefix_lower = prefixes[level]
+                if label_lower.startswith(prefix_lower):
+                    # Extract value after the prefix "Level: "
+                    value = label[len(level) + 2:].strip() # Length of "Level" + ": "
+                    if value:
+                        found_labels[level].append(value)
+                    label_processed = True
+                    break # Assume one label belongs to only one hierarchy level type
+
+        # Assign the first found label for each level to the row dictionary
+        for level in config.HIERARCHY_LEVELS:
+            if found_labels[level]:
+                row_dict[level] = found_labels[level][0]
+
+        structured_results.append(row_dict)
+
+    return structured_results
+# --- Statistics Display ---
+def display_hierarchical_stats(results_df: pd.DataFrame, prefix: str = ""):
+    """
+    Calculates and displays hierarchical statistics for classified data.
+
+    Focuses on the distribution at the 'Theme' level using value counts and a bar chart.
+    Assumes the results DataFrame contains columns named using the provided prefix
+    followed by the hierarchy level (e.g., "LLM_Theme", "HF_Category").
+
+    Args:
+        results_df: DataFrame containing the classification results. Must include
+                    columns corresponding to the hierarchy levels prefixed as specified.
+        prefix: The prefix added to the hierarchy column names in the results_df
+                (e.g., "HF_", "LLM_"). Defaults to "".
+    """
+    if results_df is None or results_df.empty:
+        st.warning("No results data available to generate statistics.")
+        return
+
+    # Define column names based on prefix
+    theme_col = f"{prefix}Theme"
+    cat_col = f"{prefix}Category"
+    seg_col = f"{prefix}Segment"
+    subseg_col = f"{prefix}Subsegment" # Assuming Subsegment is the key in df
+
+    hierarchy_cols = [theme_col, cat_col, seg_col, subseg_col]
+
+    # Check if required columns exist
+    missing_cols = [col for col in hierarchy_cols if col not in results_df.columns]
+    if missing_cols:
+        st.error(f"Cannot generate hierarchical stats. Missing columns: {', '.join(missing_cols)}")
+        return
+
+    total_rows = len(results_df)
+    st.caption(f"Based on {total_rows:,} processed rows.")
+
+    # 1. Theme Distribution
+    st.markdown("#### Theme Distribution")
+    theme_counts = results_df[theme_col].value_counts(dropna=True)
+    if not theme_counts.empty:
+        # Simple Bar Chart for Themes
+        st.bar_chart(theme_counts)
+        with st.expander("View Theme Counts Table"):
+            st.dataframe(theme_counts.reset_index().rename(columns={'index':'Theme', theme_col:'Count'}), use_container_width=True)
+    else:
+        st.info("No Themes were assigned.")
+
+    # Removed commented-out sections for Category/Segment distribution for clarity.
+    # These could be added back if more detailed nested stats are required.
+
+    st.markdown("---") # Add a visual separator

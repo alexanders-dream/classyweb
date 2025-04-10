@@ -1,6 +1,16 @@
 // frontend/src/services/api.ts
 import axios from 'axios';
-import { FileInfo } from '../types'; // Assuming types/index.ts exists
+// Import the new types along with existing ones
+import {
+  FileInfo,
+  ProviderListResponse,
+  FetchModelsRequest,
+  ModelListResponse,
+  HierarchySuggestRequest,
+  HierarchySuggestResponse,
+  ClassifyLLMRequest, // Added
+  TaskStatus // Added
+} from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -40,5 +50,93 @@ export const uploadFile = async (file: File): Promise<FileInfo> => {
     throw error;
   }
 };
+
+// --- LLM Config API Functions ---
+
+export const getLLMProviders = async (): Promise<ProviderListResponse> => {
+  try {
+    const response = await apiClient.get<ProviderListResponse>('/llm/providers');
+    return response.data;
+  } catch (error: any) {
+    console.error("Error fetching LLM providers:", error);
+    throw error; // Rethrow formatted error from interceptor
+  }
+};
+
+export const fetchLLMModels = async (requestData: FetchModelsRequest): Promise<ModelListResponse> => {
+  try {
+    // Use POST method as defined in the backend
+    const response = await apiClient.post<ModelListResponse>('/llm/models', requestData);
+    return response.data;
+  } catch (error: any) {
+    console.error("Error fetching LLM models:", error);
+    throw error; // Rethrow formatted error from interceptor
+  }
+};
+
+// --- Hierarchy Suggestion API Function ---
+
+export const suggestHierarchy = async (requestData: HierarchySuggestRequest): Promise<HierarchySuggestResponse> => {
+  if (!requestData.llm_config) {
+    // Frontend validation before sending
+    console.error("LLM configuration is missing in suggestHierarchy request.");
+    return { suggestion: null, error: "LLM configuration is required." };
+    // Alternatively, throw new Error("LLM configuration is required.");
+  }
+  try {
+    const response = await apiClient.post<HierarchySuggestResponse>('/llm/hierarchy/suggest', requestData);
+    // Check if the backend returned an error within a 200 response
+    if (response.data.error) {
+        console.warn(`Hierarchy suggestion failed (backend reported): ${response.data.error}`);
+    }
+    return response.data;
+  } catch (error: any) {
+    console.error("Error fetching hierarchy suggestion:", error);
+    // Return error structure consistent with backend response if possible
+    // The interceptor might already format this, but being explicit can help.
+    const errorMessage = error?.detail || error?.message || 'Failed to fetch suggestion due to network or server error.';
+    return { suggestion: null, error: errorMessage };
+    // Or rethrow: throw error;
+  }
+};
+
+// --- Classification Task API Functions ---
+
+export const startLLMClassification = async (requestData: ClassifyLLMRequest): Promise<TaskStatus> => {
+  // Add frontend validation if needed (e.g., check if file_id, text_column exist)
+  if (!requestData.file_id || !requestData.text_column || !requestData.hierarchy || !requestData.llm_config) {
+      console.error("Missing required fields for LLM classification request:", requestData);
+      throw new Error("Missing required fields to start LLM classification.");
+  }
+  try {
+    // Backend expects 202 Accepted, response body contains initial TaskStatus
+    const response = await apiClient.post<TaskStatus>('/classify/llm', requestData);
+    return response.data;
+  } catch (error: any) {
+    console.error("Error starting LLM classification:", error);
+    throw error; // Rethrow formatted error from interceptor
+  }
+};
+
+export const getTaskStatus = async (taskId: string): Promise<TaskStatus> => {
+  if (!taskId) {
+      console.error("Task ID is required to fetch status.");
+      throw new Error("Task ID is required.");
+  }
+  try {
+    const response = await apiClient.get<TaskStatus>(`/tasks/${taskId}`);
+    return response.data;
+  } catch (error: any) {
+    console.error(`Error fetching status for task ${taskId}:`, error);
+    // Handle 404 specifically?
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+        throw new Error(`Task with ID ${taskId} not found.`);
+    }
+    throw error; // Rethrow formatted error from interceptor
+  }
+};
+
+// Note: Download URL is constructed from TaskStatus.result_url, so no separate API call needed here.
+
 
 export default apiClient; // Keep default export if used elsewhere

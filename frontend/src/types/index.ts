@@ -19,5 +19,60 @@ export interface FileInfo {
     message?: string | null;
     result_url?: string | null;
   }
-  
+
+  // --- LLM Config API Types ---
+
+  export interface ProviderListResponse {
+    providers: string[];
+  }
+
+  export interface FetchModelsRequest {
+    provider: string;
+    endpoint: string;
+    api_key?: string | null;
+  }
+
+  export interface ModelListResponse {
+    models: string[];
+  }
+
+  // --- Hierarchy Editor Types ---
+
+  export interface HierarchyRow {
+    // Using optional id for potential grid library integration
+    id?: number | string;
+    Theme: string;
+    Category: string;
+    Segment: string;
+    Subsegment: string; // Standardized name
+    Keywords: string; // Comma-separated string
+  }
+
+  // --- Hierarchy Suggestion API Types ---
+
+  export interface HierarchySuggestRequest {
+    sample_texts: string[];
+    llm_config: LLMProviderConfig; // Reuse existing config type
+  }
+
+  // Represents the nested structure returned by the backend suggestion
+  // This is intentionally kept generic (Dict/Any) as the exact structure
+  // might vary slightly, and we primarily use it for flattening.
+  export type NestedHierarchySuggestion = Record<string, any>;
+
+  export interface HierarchySuggestResponse {
+    suggestion?: NestedHierarchySuggestion | null;
+    error?: string | null;
+  }
+
+  // --- LLM Classification API Types ---
+
+  export interface ClassifyLLMRequest {
+    file_id: string;
+    text_column: string;
+    hierarchy: NestedHierarchySuggestion; // The nested hierarchy structure
+    llm_config: LLMProviderConfig;
+  }
+
+
   // Add more types as needed for hierarchy, rules, etc. later
