@@ -2,10 +2,12 @@
 import React from 'react';
 import { ThemeProvider, createTheme, CssBaseline, Box, Drawer, List, ListItem, ListItemButton, ListItemText, Toolbar, Typography, Divider, AppBar } from '@mui/material';
 import DataSetup from './features/DataSetup';
+import { useAppStore } from './store/store'; // Added store import
 // Import the new components
 import LLMConfigSidebar from './components/LLMConfigSidebar';
 import HierarchyEditor from './features/HierarchyEditor';
-import ClassificationRunner from './features/ClassificationRunner'; // Added
+import ClassificationRunner from './features/ClassificationRunner';
+import ResultsDisplay from './features/ResultsDisplay'; // Added ResultsDisplay
 
 
 const drawerWidth = 280; // Slightly wider maybe
@@ -19,6 +21,8 @@ function App() {
 
   // Placeholder for active workflow/tab state
   const [activeWorkflow, setActiveWorkflow] = React.useState("LLM"); // Example state
+  // Get results from store to conditionally render ResultsDisplay
+  const classificationResults = useAppStore((state) => state.classificationResults);
 
   return (
     <ThemeProvider theme={theme}>
@@ -112,7 +116,13 @@ function App() {
           )}
 
            <Divider sx={{ my: 4 }} />
-          <Typography variant="h5">4. Results (Placeholder)</Typography>
+           {/* Conditionally render Results Display */}
+           {classificationResults && (
+                <ResultsDisplay />
+           )}
+           {!classificationResults && (
+                <Typography variant="h5">4. Results (Run classification to see results)</Typography>
+           )}
 
 
         </Box>

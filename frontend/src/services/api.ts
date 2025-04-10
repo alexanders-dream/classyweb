@@ -8,8 +8,9 @@ import {
   ModelListResponse,
   HierarchySuggestRequest,
   HierarchySuggestResponse,
-  ClassifyLLMRequest, // Added
-  TaskStatus // Added
+  ClassifyLLMRequest,
+  TaskStatus,
+  ClassificationResultRow // Added
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -136,7 +137,29 @@ export const getTaskStatus = async (taskId: string): Promise<TaskStatus> => {
   }
 };
 
-// Note: Download URL is constructed from TaskStatus.result_url, so no separate API call needed here.
+export const getResultData = async (taskId: string): Promise<ClassificationResultRow[]> => {
+    if (!taskId) {
+        console.error("Task ID is required to fetch result data.");
+        throw new Error("Task ID is required.");
+    }
+    try {
+        // The backend endpoint /results/{task_id}/data returns the JSON array
+        const response = await apiClient.get<ClassificationResultRow[]>(`/results/${taskId}/data`);
+        return response.data;
+    } catch (error: any) {
+        console.error(`Error fetching result data for task ${taskId}:`, error);
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+            throw new Error(`Result data not found for task ${taskId}.`);
+        }
+        if (axios.isAxiosError(error) && error.response?.status === 409) {
+            throw new Error(`Task ${taskId} is not yet completed successfully.`);
+        }
+        throw error; // Rethrow formatted error from interceptor or other errors
+    }
+};
 
+
+// Note: Download URL is constructed from TaskStatus.result_url, so no separate API call needed here.
+// We will keep the backend download endpoint for potential direct downloads if needed later.
 
 export default apiClient; // Keep default export if used elsewhere

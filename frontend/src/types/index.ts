@@ -17,7 +17,7 @@ export interface FileInfo {
     task_id: string;
     status: 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED'; // Use string literals for status
     message?: string | null;
-    result_url?: string | null;
+    result_data_url?: string | null; // Renamed from result_url
   }
 
   // --- LLM Config API Types ---
@@ -69,10 +69,15 @@ export interface FileInfo {
 
   export interface ClassifyLLMRequest {
     file_id: string;
+    original_filename: string;
     text_column: string;
     hierarchy: NestedHierarchySuggestion; // The nested hierarchy structure
     llm_config: LLMProviderConfig;
   }
+
+  // --- Classification Results Type ---
+  // Represents a single row in the results data (flexible columns)
+  export type ClassificationResultRow = Record<string, any>;
 
 
   // Add more types as needed for hierarchy, rules, etc. later

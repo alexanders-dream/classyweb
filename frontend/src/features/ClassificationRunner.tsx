@@ -1,10 +1,9 @@
 // frontend/src/features/ClassificationRunner.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/store';
-import { startLLMClassification, getTaskStatus } from '../services/api';
-import { TaskStatus } from '../types';
+import { startLLMClassification, getTaskStatus, getResultData } from '../services/api'; // Added getResultData
+import { TaskStatus, ClassificationResultRow } from '../types'; // Added ClassificationResultRow
 // Import helper from backend utils (needs porting or separate frontend util)
-// For now, define a basic version here
 import { buildHierarchyFromDf } from '../utils/hierarchyUtils'; // Assuming utils file exists
 
 const POLLING_INTERVAL_MS = 3000; // Poll every 3 seconds
@@ -16,13 +15,17 @@ const ClassificationRunner: React.FC = () => {
     selectedPredictionColumn,
     hierarchyRows,
     hierarchyIsValid,
+    //upsertTask,
     classificationTaskId,
     setClassificationTaskId,
     classificationTaskStatus,
     setClassificationTaskStatus,
+    // classificationResults, // Not needed directly here, just the setter
+    setClassificationResults, // Added setter
   } = useAppStore();
 
   const [isStarting, setIsStarting] = useState(false);
+  const [isFetchingResults, setIsFetchingResults] = useState(false); // Added state for fetching results
   const [error, setError] = useState<string | null>(null);
   const [pollingIntervalId, setPollingIntervalId] = useState<NodeJS.Timeout | null>(null);
 
@@ -47,6 +50,7 @@ const ClassificationRunner: React.FC = () => {
     setIsStarting(true);
     setError(null);
     setClassificationTaskStatus(null); // Clear previous status
+    setClassificationResults(null); // Explicitly clear previous results when starting
 
     // Build the nested hierarchy from the rows in the store
     const nestedHierarchy = buildHierarchyFromDf(hierarchyRows);
@@ -59,6 +63,7 @@ const ClassificationRunner: React.FC = () => {
     try {
       const initialStatus = await startLLMClassification({
         file_id: predictionFileInfo.file_id,
+        original_filename: predictionFileInfo.filename,
         text_column: selectedPredictionColumn,
         hierarchy: nestedHierarchy, // Send the nested structure
         llm_config: llmConfig,
@@ -67,7 +72,8 @@ const ClassificationRunner: React.FC = () => {
       setClassificationTaskStatus(initialStatus); // Set initial status (likely PENDING)
     } catch (err: any) {
       setError(`Error starting classification: ${err.message || 'Unknown error'}`);
-      setClassificationTaskId(null);
+      setClassificationTaskId(null); // Clear task ID on start error
+      setClassificationResults(null); // Clear results on start error
     } finally {
       setIsStarting(false);
     }
@@ -85,10 +91,15 @@ const ClassificationRunner: React.FC = () => {
           clearInterval(pollingIntervalId);
           setPollingIntervalId(null);
         }
-        setClassificationTaskId(null); // Clear task ID once finished to allow starting new task
+        // Don't clear task ID immediately on success, wait for results fetch
+        if (status.status === 'FAILED') {
+            setClassificationTaskId(null); // Clear task ID on failure
+            setClassificationResults(null); // Clear results on failure
+        }
       }
     } catch (err: any) {
       setError(`Error polling task status: ${err.message || 'Unknown error'}`);
+      setClassificationResults(null); // Clear results on polling error
       // Optionally stop polling on error, or keep trying? Stopping for now.
       if (pollingIntervalId) {
         clearInterval(pollingIntervalId);
@@ -96,7 +107,7 @@ const ClassificationRunner: React.FC = () => {
       }
        setClassificationTaskId(null); // Clear task ID on polling error
     }
-  }, [pollingIntervalId, setClassificationTaskStatus, setClassificationTaskId]);
+  }, [pollingIntervalId, setClassificationTaskStatus, setClassificationTaskId, setClassificationResults]); // Added setClassificationResults dependency
 
   // Effect to start/stop polling when taskId changes
   useEffect(() => {
@@ -119,14 +130,37 @@ const ClassificationRunner: React.FC = () => {
     };
   }, [classificationTaskId, pollingIntervalId, pollStatus]);
 
+  // Effect to fetch results when status becomes SUCCESS
+  useEffect(() => {
+    if (classificationTaskStatus?.status === 'SUCCESS' && classificationTaskStatus.task_id) {
+      const fetchResults = async (taskId: string) => {
+        setIsFetchingResults(true);
+        setError(null); // Clear previous errors
+        try {
+          const results = await getResultData(taskId);
+          setClassificationResults(results);
+          // Now clear the task ID as results are fetched
+          setClassificationTaskId(null);
+        } catch (err: any) {
+          setError(`Error fetching results: ${err.message || 'Unknown error'}`);
+          setClassificationResults(null); // Clear results on fetch error
+          setClassificationTaskId(null); // Also clear task ID on fetch error
+        } finally {
+          setIsFetchingResults(false);
+        }
+      };
+      fetchResults(classificationTaskStatus.task_id);
+    }
+  }, [classificationTaskStatus, setClassificationResults, setClassificationTaskId]); // Dependencies
+
 
   // --- Render Logic ---
   const isClassificationReady = canStartClassification();
   const currentStatus = classificationTaskStatus?.status;
   const statusMessage = classificationTaskStatus?.message;
-  const downloadUrl = classificationTaskStatus?.result_url;
-  // Construct full download URL using API base
-  const fullDownloadUrl = downloadUrl ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${downloadUrl}` : null;
+  // We no longer use the download URL directly here
+  // const downloadUrl = classificationTaskStatus?.result_data_url; // Use the correct field name
+  // const fullDownloadUrl = downloadUrl ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${downloadUrl}` : null;
 
 
   return (
@@ -149,13 +183,13 @@ const ClassificationRunner: React.FC = () => {
       {classificationTaskStatus && (
         <div style={{ marginTop: '1rem', padding: '1rem', border: '1px solid #eee' }}>
           <h4>Task Status</h4>
-          <p><strong>Status:</strong> {currentStatus}</p>
+          <p><strong>Status:</strong> {currentStatus ?? 'Idle'}</p>
           {statusMessage && <p><strong>Message:</strong> {statusMessage}</p>}
           {currentStatus === 'RUNNING' && <p>Polling for updates...</p>}
-          {currentStatus === 'SUCCESS' && fullDownloadUrl && (
-            <a href={fullDownloadUrl} download target="_blank" rel="noopener noreferrer">
-              <button>✅ Download Results (.xlsx)</button>
-            </a>
+          {currentStatus === 'SUCCESS' && isFetchingResults && <p>Fetching results...</p>}
+          {currentStatus === 'SUCCESS' && !isFetchingResults && (
+              <p style={{ color: 'green' }}>✅ Classification successful! Results fetched.</p>
+              // Results display will be handled by a separate component or in App.tsx
           )}
            {currentStatus === 'FAILED' && <p style={{ color: 'red' }}>Classification Failed.</p>}
         </div>

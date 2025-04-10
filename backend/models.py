@@ -20,7 +20,7 @@ class TaskStatus(BaseModel):
     task_id: str
     status: str = Field(..., description="e.g., PENDING, RUNNING, SUCCESS, FAILED")
     message: Optional[str] = None
-    result_url: Optional[str] = Field(None, description="URL to download results when SUCCESS")
+    result_data_url: Optional[str] = Field(None, description="URL to fetch result data as JSON when SUCCESS") # Renamed field
     # Add more fields later, like progress percentage if desired
 
 # --- LLM Config API Models ---
@@ -50,6 +50,7 @@ class HierarchySuggestResponse(BaseModel):
 
 class ClassifyLLMRequest(BaseModel):
     file_id: str = Field(..., description="ID of the uploaded file to classify")
+    original_filename: str = Field(..., description="Original name of the uploaded file")
     text_column: str = Field(..., description="Name of the column containing text data")
     hierarchy: Dict[str, Any] = Field(..., description="Nested hierarchy structure for classification")
     llm_config: LLMProviderConfig

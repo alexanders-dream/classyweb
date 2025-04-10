@@ -79,6 +79,7 @@ class TaskStatusEnum(str, Enum):
 def run_llm_classification_task(
     task_id: str,
     file_id: str,
+    original_filename: str,
     text_column: str,
     hierarchy: Dict[str, Any],
     llm_config_dict: Dict[str, Any] # Pass config as dict
@@ -107,9 +108,9 @@ def run_llm_classification_task(
             raise FileNotFoundError(f"Input file not found for file_id: {file_id}")
 
         # Assuming original filename isn't strictly needed here, pass None or fetch if required
-        df_input = utils.load_data(file_path=input_file_path, original_filename=f"{file_id}_data")
+        df_input = utils.load_data(file_path=input_file_path, original_filename=original_filename)
         if df_input is None:
-            raise ValueError(f"Failed to load data from file: {input_file_path}")
+            raise ValueError(f"Failed to load data from file: {input_file_path} (Original: {original_filename})")
 
         if text_column not in df_input.columns:
              raise ValueError(f"Text column '{text_column}' not found in the input file.")
@@ -330,7 +331,7 @@ async def start_llm_classification(
     Starts a background task for LLM classification.
     """
     task_id = str(uuid.uuid4())
-    logger.info(f"Received LLM classification request. Assigning Task ID: {task_id}")
+    logger.info(f"Received LLM classification request for file '{request.original_filename}' (ID: {request.file_id}). Assigning Task ID: {task_id}")
 
     # Validate input file exists (basic check)
     input_file_path = UPLOAD_DIR / request.file_id
@@ -350,6 +351,7 @@ async def start_llm_classification(
         run_llm_classification_task,
         task_id=task_id,
         file_id=request.file_id,
+        original_filename=request.original_filename,
         text_column=request.text_column,
         hierarchy=request.hierarchy,
         llm_config_dict=request.llm_config.model_dump() # Pass config as dict
@@ -373,20 +375,59 @@ async def get_task_status(task_id: str = FastApiPath(..., description="ID of the
         logger.warning(f"Task ID not found: {task_id}")
         raise HTTPException(status_code=404, detail="Task not found")
 
-    result_url = None
+    result_data_url = None # Renamed variable
     if task["status"] == TaskStatusEnum.SUCCESS and task.get("result_path"):
-        # Construct the download URL dynamically based on the API structure
-        result_url = f"/results/{task_id}/download" # Relative URL
+        # Construct the URL for fetching data dynamically
+        result_data_url = f"/results/{task_id}/data" # URL to get JSON data
 
     return TaskStatus(
         task_id=task_id,
         status=task["status"],
         message=task.get("message"),
-        result_url=result_url
+        result_data_url=result_data_url # Return the data URL
     )
 
+# Endpoint to get results as JSON data
+@app.get("/results/{task_id}/data", tags=["Classification Tasks"], response_model=List[Dict[str, Any]])
+async def get_result_data(task_id: str = FastApiPath(..., description="ID of the task whose results to fetch")):
+    """
+    Retrieves the classification results as JSON data for a completed task.
+    """
+    logger.info(f"Request received to fetch result data for task ID: {task_id}")
+    task = tasks_db.get(task_id)
+    if not task:
+        logger.warning(f"Data request failed: Task ID not found: {task_id}")
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if task["status"] != TaskStatusEnum.SUCCESS:
+        logger.warning(f"Data request failed: Task {task_id} status is {task['status']}")
+        raise HTTPException(status_code=409, detail=f"Task is not yet completed successfully (Status: {task['status']})")
+
+    result_path_str = task.get("result_path")
+    if not result_path_str:
+        logger.error(f"Data request failed: Result path missing for completed task {task_id}")
+        raise HTTPException(status_code=500, detail="Result file path not found for completed task.")
+
+    result_path = Path(result_path_str)
+    if not result_path.exists():
+        logger.error(f"Data request failed: Result file not found at path: {result_path}")
+        raise HTTPException(status_code=500, detail="Result file not found on server.")
+
+    try:
+        # Read the Excel file into a pandas DataFrame
+        df_results = pd.read_excel(result_path)
+        # Convert DataFrame to list of dictionaries (JSON serializable)
+        # Handle potential NaN values which are not valid JSON -> convert to None
+        results_json = df_results.replace({pd.NA: None, float('nan'): None}).to_dict('records')
+        logger.info(f"Successfully read and converted results for task {task_id} to JSON.")
+        return results_json
+    except Exception as e:
+        logger.error(f"Failed to read or convert result file {result_path} for task {task_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to process result file.")
+
+
 @app.get("/results/{task_id}/download", tags=["Classification Tasks"], response_class=FileResponse)
-async def download_results(task_id: str = FastApiPath(..., description="ID of the task whose results to download")):
+async def download_results(task_id: str = FastApiPath(..., description="ID of the task whose results to download")): # Keep download endpoint
     """
     Downloads the result file of a completed classification task.
     """
